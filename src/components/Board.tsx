@@ -86,29 +86,35 @@ export function Board() {
     <meshStandardMaterial map={m.map} normalMap={m.normalMap} normalScale={new THREE.Vector2(1.2, 1.2)} color={color} roughness={0.95} metalness={0.08} />
   );
 
+  const handleDeselect = () => {
+    if (useGameStore.getState().cellToSow !== null) {
+      useGameStore.getState().selectCell(null);
+    }
+  };
+
   return (
     <group>
       {/* Outer stepped plinth */}
-      <mesh position={[0, -1.0, 0]} receiveShadow castShadow>
+      <mesh position={[0, -1.0, 0]} receiveShadow castShadow onPointerDown={handleDeselect}>
         <boxGeometry args={[19.6, 0.5, 10.2]} />
         {stoneMat(slab, '#55555f')}
         <Edges threshold={20} color="#050508" />
       </mesh>
-      <mesh position={[0, -0.55, 0]} receiveShadow castShadow>
+      <mesh position={[0, -0.55, 0]} receiveShadow castShadow onPointerDown={handleDeselect}>
         <boxGeometry args={[18.4, 0.5, 9.0]} />
         {stoneMat(slab, '#6a6a76')}
         <Edges threshold={20} color="#050508" />
       </mesh>
 
       {/* Ancient gothic altar core */}
-      <mesh position={[0, -0.4, 0]} receiveShadow>
+      <mesh position={[0, -0.4, 0]} receiveShadow onPointerDown={handleDeselect}>
         <boxGeometry args={[14.5, 0.8, 6.5]} />
         {stoneMat(plinth, '#4a4a56')}
         <Edges threshold={20} color="#050508" />
       </mesh>
 
       {/* Worn inner stone pad */}
-      <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow onPointerDown={handleDeselect}>
         <planeGeometry args={[14, 6]} />
         <meshStandardMaterial map={pad.map} normalMap={pad.normalMap} color="#2c2c36" roughness={1} />
       </mesh>

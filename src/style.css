@@ -133,126 +133,42 @@ button { font-family: var(--display); }
   text-shadow: 0 0 6px rgba(255, 170, 40, 0.6);
 }
 
-/* ---------------- Interactive Sowing Decision Panel ---------------- */
-.sow-panel {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(140px, 24vh, 230px);
-  transform: translateX(-50%);
-  display: flex;
+/* ---------------- Sowing Direction Status & Belt Controls ---------------- */
+.belt-sow-hint {
+  display: inline-flex;
   align-items: center;
-  gap: 14px;
-  z-index: 35;
-  background: linear-gradient(180deg, rgba(30, 26, 20, 0.95), rgba(12, 10, 8, 0.98));
-  border: 2px solid var(--gold);
-  border-radius: 40px;
-  padding: 8px 16px;
-  box-shadow:
-    inset 0 0 20px rgba(0,0,0,0.9),
-    0 0 0 1px #000,
-    0 0 30px rgba(255, 140, 20, 0.35),
-    0 12px 36px rgba(0,0,0,0.9);
-  animation: sow-panel-in 0.25s cubic-bezier(0.2, 1.2, 0.3, 1) both;
+  justify-content: center;
+  gap: 12px;
 }
 
-@keyframes sow-panel-in {
-  from { opacity: 0; transform: translate(-50%, 15px) scale(0.92); }
-  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-}
-
-.sow-action-btn {
-  display: flex;
+.belt-cancel-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 18px;
-  background: radial-gradient(circle at 35% 25%, #42351c, #161208 80%);
-  border: 1.5px solid var(--gold-dim);
-  border-radius: 24px;
-  color: var(--gold-hi);
+  gap: 4px;
+  padding: 3px 10px;
+  background: radial-gradient(circle at 35% 25%, #381a18, #160808 85%);
+  border: 1px solid #993322;
+  border-radius: 12px;
+  color: #ffaa99;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
-  box-shadow: inset 0 0 8px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,0.7);
+  pointer-events: auto;
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.8), 0 2px 6px rgba(0,0,0,0.7);
   transition: all 0.15s ease;
 }
 
-.sow-action-btn:hover {
-  border-color: var(--gold-hi);
-  color: #fff;
-  transform: translateY(-2px);
-  box-shadow: inset 0 0 10px rgba(255, 170, 40, 0.3), 0 0 16px rgba(255, 170, 40, 0.5), 0 6px 16px rgba(0,0,0,0.8);
-}
-
-.sow-action-btn:active {
-  transform: translateY(0) scale(0.96);
-}
-
-.sow-arrow {
-  font-size: 1.4rem;
-  color: #ffaa33;
-  line-height: 1;
-}
-
-.sow-action-btn:hover .sow-arrow {
+.belt-cancel-btn:hover {
+  background: radial-gradient(circle at 35% 25%, #552220, #220b0b 85%);
+  border-color: #ff5544;
   color: #ffffff;
-  text-shadow: 0 0 10px #ffbb44;
+  box-shadow: inset 0 0 8px rgba(255, 80, 60, 0.4), 0 0 10px rgba(255, 60, 40, 0.5);
+  transform: translateY(-1px);
 }
 
-.sow-text {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-
-.sow-right .sow-text {
-  text-align: right;
-}
-
-.sow-main {
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.sow-sub {
-  font-size: 0.65rem;
-  color: #9c8a5c;
-  letter-spacing: 0.08em;
-}
-
-.sow-center-disc {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 8px;
-  gap: 2px;
-}
-
-.sow-center-cell {
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
-
-.sow-center-rune {
-  font-size: 1.1rem;
-  color: #ff8822;
-  text-shadow: 0 0 8px #ff6600;
-}
-
-.sow-cancel-btn {
-  background: none;
-  border: none;
-  color: #7a6e55;
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  padding: 2px 6px;
-  transition: color 0.15s;
-}
-
-.sow-cancel-btn:hover {
-  color: #ff5544;
+.belt-cancel-btn:active {
+  transform: translateY(0) scale(0.95);
 }
 
 /* ---------------- Bottom HUD ---------------- */
@@ -276,6 +192,7 @@ button { font-family: var(--display); }
   margin: 0 clamp(6px, 1.5vw, 24px) 6px;
   padding: 14px 24px 12px;
   text-align: center;
+  pointer-events: auto;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.06), transparent 30%),
     linear-gradient(180deg, #2b2b35, #17171e 60%, #0c0c11);
@@ -874,11 +791,69 @@ button { font-family: var(--display); }
 #message-overlay .btn-d2 { animation: fade-up 1s 1.2s both; }
 
 @media (max-width: 640px) {
-  .belt { padding: 10px 14px; }
+  .belt { padding: 8px 12px; }
   .belt::before, .belt::after { display: none; }
-  .turn-plate { letter-spacing: 0.15em; padding: 5px 14px; gap: 8px; }
-  .belt-status { display: none; }
-  .hud-tools { top: 10px; right: 10px; }
+  .turn-plate { letter-spacing: 0.15em; padding: 4px 12px; gap: 6px; font-size: 0.9rem; }
+  .belt-status { font-size: 0.72rem; letter-spacing: 0.1em; margin-top: 4px; }
+  .hud-tools { top: 8px; right: 10px; }
+}
+
+/* ---------------- Landscape Mobile Ergonomics (iPhone landscape) ---------------- */
+@media (max-height: 500px) {
+  :root {
+    --orb: clamp(52px, 15vh, 70px);
+  }
+  .hud-bottom {
+    height: calc(var(--orb) + 18px);
+    padding: 0 clamp(6px, 2vw, 20px) 4px;
+  }
+  .belt {
+    padding: 6px 14px 6px;
+    margin: 0 clamp(4px, 1vw, 12px) 2px;
+    flex: 0 1 480px;
+  }
+  .turn-plate {
+    padding: 3px 14px;
+    font-size: 0.82rem;
+    gap: 8px;
+    letter-spacing: 0.2em;
+  }
+  .turn-plate .rune {
+    font-size: 0.75rem;
+  }
+  .belt-status {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+  }
+  .hud-top {
+    height: 42px;
+    padding-top: 4px;
+  }
+  .hud-title {
+    font-size: 0.95rem;
+    letter-spacing: 0.25em;
+    gap: 10px;
+  }
+  .hud-title::before, .hud-title::after {
+    width: 28px;
+  }
+  .hud-tools {
+    top: 6px;
+    right: 8px;
+    gap: 6px;
+  }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .icon-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+  .lang-btn {
+    font-size: 0.72rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

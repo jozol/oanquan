@@ -79,7 +79,13 @@ export const Cell = memo(function Cell({ cell }: { cell: CellData }) {
   
   const handlePointerDown = (e: any) => {
     e.stopPropagation();
+    if (isSelected) {
+      sfx.click();
+      selectCell(null);
+      return;
+    }
     if (isClickable) {
+      sfx.click();
       useGameStore.getState().startDrag(index, e.clientX);
     } else {
       selectCell(null);
@@ -163,7 +169,7 @@ export const Cell = memo(function Cell({ cell }: { cell: CellData }) {
 
       {/* --- 3D INTERACTIVE SOWING ARROWS (When Cell is Selected) --- */}
       {isSelected && !isAnimating && (
-        <DirectionArrows cellIndex={index} width={width} currentPlayer={currentPlayer} />
+        <DirectionArrows cellIndex={index} />
       )}
 
       {/* --- 3D CARVED CITIZEN NUMBERS --- */}
@@ -224,15 +230,7 @@ export const Cell = memo(function Cell({ cell }: { cell: CellData }) {
   );
 });
 
-function DirectionArrows({
-  cellIndex,
-  width,
-  currentPlayer
-}: {
-  cellIndex: number;
-  width: number;
-  currentPlayer: number;
-}) {
+function DirectionArrows({ cellIndex }: { cellIndex: number }) {
   const [hoverLeft, setHoverLeft] = useState(false);
   const [hoverRight, setHoverRight] = useState(false);
   const executeMove = useGameStore(s => s.executeMove);
@@ -241,106 +239,142 @@ function DirectionArrows({
   useFrame(state => {
     if (!groupRef.current) return;
     const t = state.clock.elapsedTime;
-    groupRef.current.position.y = 0.95 + Math.sin(t * 4.5) * 0.06;
+    groupRef.current.position.y = 1.35 + Math.sin(t * 4.5) * 0.08;
   });
 
-  const arrowRotY = currentPlayer === 1 ? 0 : Math.PI;
-
   return (
-    <group ref={groupRef} rotation={[0, arrowRotY, 0]}>
-      {/* Left Arrow (Clockwise) */}
-      <group
-        position={[-width * 0.44, 0, 0]}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHoverLeft(true);
-          document.body.style.cursor = 'pointer';
-          sfx.hover();
-        }}
-        onPointerOut={(e) => {
-          e.stopPropagation();
-          setHoverLeft(false);
-          document.body.style.cursor = '';
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = '';
-          sfx.click();
-          executeMove(cellIndex, 'cw');
-        }}
-      >
-        <mesh position={[0, 0, 0]}>
-          <circleGeometry args={[0.38, 24]} />
-          <meshBasicMaterial
-            color={hoverLeft ? '#ffdd44' : '#ff9922'}
-            transparent
-            opacity={hoverLeft ? 0.45 : 0.22}
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
-        <Suspense fallback={null}>
-          <Text
-            position={[0, 0, 0.02]}
-            fontSize={0.44}
-            color={hoverLeft ? '#ffffff' : '#ffd566'}
-            font={cinzelFont}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.035}
-            outlineColor="#000000"
-          >
-            ◀
-          </Text>
-        </Suspense>
-      </group>
+    <Billboard position={[0, 0, 0]}>
+      <group ref={groupRef}>
+        {/* Left Arrow (Clockwise / Sowing to Player's Left) */}
+        <group
+          position={[-0.78, 0, 0]}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHoverLeft(true);
+            document.body.style.cursor = 'pointer';
+            sfx.hover();
+          }}
+          onPointerOut={(e) => {
+            e.stopPropagation();
+            setHoverLeft(false);
+            document.body.style.cursor = '';
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            document.body.style.cursor = '';
+            sfx.click();
+            executeMove(cellIndex, 'cw');
+          }}
+        >
+          {/* Subtle Outer Glow Halo */}
+          <mesh position={[0, 0, -0.015]}>
+            <circleGeometry args={[0.54, 32]} />
+            <meshBasicMaterial
+              color={hoverLeft ? '#ffdd44' : '#ff9922'}
+              transparent
+              opacity={hoverLeft ? 0.6 : 0.3}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
 
-      {/* Right Arrow (Counter-Clockwise) */}
-      <group
-        position={[width * 0.44, 0, 0]}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHoverRight(true);
-          document.body.style.cursor = 'pointer';
-          sfx.hover();
-        }}
-        onPointerOut={(e) => {
-          e.stopPropagation();
-          setHoverRight(false);
-          document.body.style.cursor = '';
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = '';
-          sfx.click();
-          executeMove(cellIndex, 'ccw');
-        }}
-      >
-        <mesh position={[0, 0, 0]}>
-          <circleGeometry args={[0.38, 24]} />
-          <meshBasicMaterial
-            color={hoverRight ? '#ffdd44' : '#ff9922'}
-            transparent
-            opacity={hoverRight ? 0.45 : 0.22}
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
-        <Suspense fallback={null}>
-          <Text
-            position={[0, 0, 0.02]}
-            fontSize={0.44}
-            color={hoverRight ? '#ffffff' : '#ffd566'}
-            font={cinzelFont}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.035}
-            outlineColor="#000000"
-          >
-            ▶
-          </Text>
-        </Suspense>
+          {/* Obsidian Base Medallion */}
+          <mesh position={[0, 0, -0.01]}>
+            <circleGeometry args={[0.46, 32]} />
+            <meshBasicMaterial color="#14110e" />
+          </mesh>
+
+          {/* Golden Rune Rim */}
+          <mesh position={[0, 0, -0.005]}>
+            <ringGeometry args={[0.39, 0.46, 32]} />
+            <meshBasicMaterial color={hoverLeft ? '#ffe875' : '#c9a653'} />
+          </mesh>
+
+          {/* Crisp Arrow Symbol */}
+          <Suspense fallback={null}>
+            <Text
+              position={[0, 0, 0.02]}
+              fontSize={0.52}
+              color={hoverLeft ? '#ffffff' : '#ffea75'}
+              font={cinzelFont}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.045}
+              outlineColor="#050508"
+              depthOffset={-12}
+              renderOrder={60}
+              material-depthTest={false}
+            >
+              ◀
+            </Text>
+          </Suspense>
+        </group>
+
+        {/* Right Arrow (Counter-Clockwise / Sowing to Player's Right) */}
+        <group
+          position={[0.78, 0, 0]}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHoverRight(true);
+            document.body.style.cursor = 'pointer';
+            sfx.hover();
+          }}
+          onPointerOut={(e) => {
+            e.stopPropagation();
+            setHoverRight(false);
+            document.body.style.cursor = '';
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            document.body.style.cursor = '';
+            sfx.click();
+            executeMove(cellIndex, 'ccw');
+          }}
+        >
+          {/* Subtle Outer Glow Halo */}
+          <mesh position={[0, 0, -0.015]}>
+            <circleGeometry args={[0.54, 32]} />
+            <meshBasicMaterial
+              color={hoverRight ? '#ffdd44' : '#ff9922'}
+              transparent
+              opacity={hoverRight ? 0.6 : 0.3}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Obsidian Base Medallion */}
+          <mesh position={[0, 0, -0.01]}>
+            <circleGeometry args={[0.46, 32]} />
+            <meshBasicMaterial color="#14110e" />
+          </mesh>
+
+          {/* Golden Rune Rim */}
+          <mesh position={[0, 0, -0.005]}>
+            <ringGeometry args={[0.39, 0.46, 32]} />
+            <meshBasicMaterial color={hoverRight ? '#ffe875' : '#c9a653'} />
+          </mesh>
+
+          {/* Crisp Arrow Symbol */}
+          <Suspense fallback={null}>
+            <Text
+              position={[0, 0, 0.02]}
+              fontSize={0.52}
+              color={hoverRight ? '#ffffff' : '#ffea75'}
+              font={cinzelFont}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.045}
+              outlineColor="#050508"
+              depthOffset={-12}
+              renderOrder={60}
+              material-depthTest={false}
+            >
+              ▶
+            </Text>
+          </Suspense>
+        </group>
       </group>
-    </group>
+    </Billboard>
   );
 }

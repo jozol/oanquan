@@ -341,47 +341,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ---------- Interactive Sowing Panel & Directional Controls ---------- */}
-      {started && cellToSow !== null && !winner && !isAnimating && (
-        <div id="dir-ui" className="sow-panel" aria-live="polite">
-          <button
-            className="sow-action-btn sow-left"
-            onClick={() => { sfx.click(); executeMove(cellToSow, 'cw'); }}
-            onMouseEnter={() => sfx.hover()}
-          >
-            <span className="sow-arrow">⟵</span>
-            <div className="sow-text">
-              <span className="sow-main">{t.sowCW}</span>
-              <span className="sow-sub">{t.sowLeft}</span>
-            </div>
-          </button>
-
-          <div className="sow-center-disc">
-            <span className="sow-center-cell">{t.cell} {cellToSow + 1}</span>
-            <span className="sow-center-rune">ᛟ</span>
-            <button
-              className="sow-cancel-btn"
-              onClick={() => { sfx.click(); selectCell(null); }}
-              title={`${t.cancel} (Esc)`}
-            >
-              ✕ {t.cancel}
-            </button>
-          </div>
-
-          <button
-            className="sow-action-btn sow-right"
-            onClick={() => { sfx.click(); executeMove(cellToSow, 'ccw'); }}
-            onMouseEnter={() => sfx.hover()}
-          >
-            <div className="sow-text">
-              <span className="sow-main">{t.sowCCW}</span>
-              <span className="sow-sub">{t.sowRight}</span>
-            </div>
-            <span className="sow-arrow">⟶</span>
-          </button>
-        </div>
-      )}
-
       {/* ---------- Bottom HUD: orbs + belt ---------- */}
       {started && (
         <footer className="hud-bottom">
@@ -401,7 +360,18 @@ export default function App() {
                   : gameMode === 'online' && myPlayerNumber !== currentPlayer
                     ? t.opponentTurn
                     : cellToSow !== null 
-                      ? t.statusChooseDir 
+                      ? (
+                        <div className="belt-sow-hint">
+                          <span>{t.cell} {cellToSow + 1}: {t.statusChooseDir}</span>
+                          <button
+                            className="belt-cancel-btn"
+                            onClick={(e) => { e.stopPropagation(); sfx.click(); selectCell(null); }}
+                            title={`${t.cancel} (Esc)`}
+                          >
+                            ✕ {t.cancel}
+                          </button>
+                        </div>
+                      )
                       : t.statusSelectCell}
             </div>
           </div>

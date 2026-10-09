@@ -228,6 +228,11 @@ export function Game() {
       dpr={[1, 1.75]}
       camera={{ position: isInstant ? [0, 10.5, 14.8] : [0, 4.2, 23.5], fov: BASE_FOV }}
       gl={{ antialias: false, toneMapping: THREE.NoToneMapping, powerPreference: 'high-performance' }}
+      onPointerMissed={() => {
+        if (useGameStore.getState().cellToSow !== null) {
+          useGameStore.getState().selectCell(null);
+        }
+      }}
     >
       <color attach="background" args={['#07070d']} />
       <fog attach="fog" args={['#07070d', 14, 48]} />
