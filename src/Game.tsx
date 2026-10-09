@@ -222,10 +222,17 @@ function CameraRig() {
 
 export function Game() {
   const isInstant = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('instant') === '1';
+  const isMobile = typeof window !== 'undefined' && (
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024) ||
+    window.innerWidth <= 800 ||
+    window.innerHeight <= 500
+  );
+
   return (
     <Canvas
       shadows
-      dpr={[1, 1.75]}
+      dpr={isMobile ? [1, 1.25] : [1, 1.75]}
       camera={{ position: isInstant ? [0, 10.5, 14.8] : [0, 4.2, 23.5], fov: BASE_FOV }}
       gl={{ antialias: false, toneMapping: THREE.NoToneMapping, powerPreference: 'high-performance' }}
       onPointerMissed={() => {
@@ -245,7 +252,7 @@ export function Game() {
         castShadow
         intensity={2.2}
         color="#b4c2ff"
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={isMobile ? [1024, 1024] : [2048, 2048]}
         shadow-camera-left={-12}
         shadow-camera-right={12}
         shadow-camera-top={9}

@@ -203,28 +203,37 @@ function BrazierFire({ seed }: { seed: number }) {
 function Torch({ position, seed }: { position: [number, number, number]; seed: number }) {
   const light = useRef<THREE.PointLight>(null);
   const stoneProps = { map: plinthSet.map, normalMap: plinthSet.normalMap, color: '#8a8a98', roughness: 1, metalness: 0.05 };
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024) ||
+      window.innerWidth <= 800 ||
+      window.innerHeight <= 500
+    );
+  }, []);
 
   useFrame((s, delta) => {
     const t = s.clock.elapsedTime + seed * 10;
     if (light.current) {
-      const f = 0.85 + Math.sin(t * 11.3) * 0.08 + Math.sin(t * 23.7) * 0.05 + Math.sin(t * 5.1) * 0.06 + Math.random() * 0.03;
+      const f = 0.85 + Math.sin(t * 11.3) * 0.08 + Math.sin(t * 23.7) * 0.05 + Math.sin(t * 5.1) * 0.06;
       light.current.intensity = 36 * f;
     }
-    if (Math.random() < delta * 14) fx.brazierEmbers(position[0], position[1] + 1.55, position[2]);
+    if (Math.random() < delta * (isMobile ? 4 : 14)) fx.brazierEmbers(position[0], position[1] + 1.55, position[2]);
   });
 
   return (
     <group position={position}>
       {/* base, shaft, bowl */}
-      <mesh position={[0, 0.14, 0]} castShadow receiveShadow>
+      <mesh position={[0, 0.14, 0]} castShadow={!isMobile} receiveShadow>
         <cylinderGeometry args={[0.46, 0.54, 0.28, 8]} />
         <meshStandardMaterial {...stoneProps} />
       </mesh>
-      <mesh position={[0, 0.72, 0]} castShadow>
+      <mesh position={[0, 0.72, 0]} castShadow={!isMobile}>
         <cylinderGeometry args={[0.2, 0.3, 1.0, 8]} />
         <meshStandardMaterial {...stoneProps} />
       </mesh>
-      <mesh position={[0, 1.3, 0]} castShadow>
+      <mesh position={[0, 1.3, 0]} castShadow={!isMobile}>
         <cylinderGeometry args={[0.44, 0.22, 0.28, 10]} />
         <meshStandardMaterial {...stoneProps} color="#6a6a78" />
       </mesh>
@@ -277,9 +286,21 @@ export function Mist() {
 /*  Ambient embers and dust motes                                      */
 /* ------------------------------------------------------------------ */
 export function AmbientEmitters() {
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024) ||
+      window.innerWidth <= 800 ||
+      window.innerHeight <= 500
+    );
+  }, []);
+
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
-    if (Math.random() < dt * 14) {
+    const fireRate = isMobile ? 4 : 14;
+    const dustRate = isMobile ? 3 : 9;
+    if (Math.random() < dt * fireRate) {
       emit(0, 0.1, 0, {
         count: 1,
         color: [2.4, 0.9, 0.2],
@@ -294,7 +315,7 @@ export function AmbientEmitters() {
         alpha: 0.9,
       });
     }
-    if (Math.random() < dt * 9) {
+    if (Math.random() < dt * dustRate) {
       emit(0, 2.5, 0, {
         count: 1,
         color: [0.55, 0.65, 1.2],

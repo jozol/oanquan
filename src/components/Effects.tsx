@@ -8,10 +8,32 @@ import { BASE_FOV } from '../layout';
 
 /** Cinematic post stack: AO, bloom, filmic tone-mapping, lens fringe, vignette, grain. */
 export function PostFx() {
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024) ||
+      window.innerWidth <= 800 ||
+      window.innerHeight <= 500
+    );
+  }, []);
+
   const offset = useMemo(() => new THREE.Vector2(0.0007, 0.0009), []);
+
+  if (isMobile) {
+    // Ultra-fast mobile post pipeline: zero AO, no heavy multi-pass noise, 0 MSAA
+    return (
+      <EffectComposer multisampling={0}>
+        <Bloom mipmapBlur intensity={0.75} luminanceThreshold={0.92} luminanceSmoothing={0.2} radius={0.5} />
+        <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+        <Vignette eskil={false} offset={0.26} darkness={0.88} />
+      </EffectComposer>
+    );
+  }
+
   return (
-    <EffectComposer multisampling={4}>
-      <N8AO aoRadius={1.6} distanceFalloff={1} intensity={2.2} quality="medium" halfRes color="#000000" />
+    <EffectComposer multisampling={2}>
+      <N8AO aoRadius={1.6} distanceFalloff={1} intensity={1.8} quality="low" halfRes color="#000000" />
       <Bloom mipmapBlur intensity={0.95} luminanceThreshold={0.9} luminanceSmoothing={0.25} radius={0.65} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       <ChromaticAberration offset={offset} radialModulation modulationOffset={0.25} blendFunction={BlendFunction.NORMAL} />

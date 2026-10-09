@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react';
+import { memo, useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, Group, Mesh, Vector3 } from 'three';
 import { StoneData, useGameStore } from '../store';
@@ -19,6 +19,22 @@ export const Stone = memo(function Stone({ stone }: { stone: StoneData }) {
   const innerRingRef = useRef<Mesh>(null);
   const coreRef = useRef<Mesh>(null);
   const pileIndex = useRef<{ cell: StoneData['logicalCell'] | null; n: number }>({ cell: null, n: 0 });
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024) ||
+      window.innerWidth <= 800 ||
+      window.innerHeight <= 500
+    );
+  }, []);
+
+  const cellIndexRef = useRef<{ cell: StoneData['logicalCell'] | null; stonesCount: number; n: number; total: number }>({
+    cell: null,
+    stonesCount: -1,
+    n: 0,
+    total: 1
+  });
 
   useFrame((state, delta) => {
     if (!groupRef.current) return;
@@ -63,10 +79,17 @@ export const Stone = memo(function Stone({ stone }: { stone: StoneData }) {
           // Demonic Mandarin core sits centrally in the Mandarin half-disc
           v.set(targetX, 0.5 + 0.65 + bobOffset, c.z);
         } else {
-          // Citizen soul crystal: golden spiral spacing so every stone is distinct
-          const sameCellStones = stones.filter(s => s.logicalCell === logicalCell && s.value === 1);
-          const n = Math.max(0, sameCellStones.findIndex(s => s.id === stone.id));
-          const totalInCell = sameCellStones.length;
+          // Citizen soul crystal: cached golden spiral spacing so every stone is distinct with zero per-frame allocation
+          if (cellIndexRef.current.cell !== logicalCell || cellIndexRef.current.stonesCount !== stones.length) {
+            const sameCellStones = stones.filter(s => s.logicalCell === logicalCell && s.value === 1);
+            cellIndexRef.current = {
+              cell: logicalCell,
+              stonesCount: stones.length,
+              n: Math.max(0, sameCellStones.findIndex(s => s.id === stone.id)),
+              total: sameCellStones.length,
+            };
+          }
+          const { n, total: totalInCell } = cellIndexRef.current;
 
           let offsetX = 0;
           let offsetZ = 0;
@@ -147,7 +170,7 @@ export const Stone = memo(function Stone({ stone }: { stone: StoneData }) {
             <meshStandardMaterial color={coreAmber} emissive="#ffaa22" emissiveIntensity={1.4} roughness={0.1} />
           </mesh>
           {/* Faceted amber soul gemstone with specular glints */}
-          <mesh castShadow receiveShadow>
+          <mesh castShadow={!isMobile} receiveShadow>
             <dodecahedronGeometry args={[0.26, 0]} />
             <meshStandardMaterial
               color="#e89824"

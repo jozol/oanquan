@@ -382,6 +382,16 @@ function CellCreviceFire() {
   const light4 = useRef<THREE.PointLight>(null);
   const light5 = useRef<THREE.PointLight>(null);
 
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024) ||
+      window.innerWidth <= 800 ||
+      window.innerHeight <= 500
+    );
+  }, []);
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
     magmaMats.centerMagma.uniforms.uTime.value = t;
@@ -393,15 +403,18 @@ function CellCreviceFire() {
     crossMatB.uniforms.uTime.value = t;
 
     // Organic erratic flicker on crevice point lights
-    if (light1.current) light1.current.intensity = 3.4 + 0.8 * Math.sin(t * 13.7) + 0.3 * Math.cos(t * 22.3);
-    if (light2.current) light2.current.intensity = 2.8 + 0.6 * Math.sin(t * 15.2 + 1.1) + 0.3 * Math.cos(t * 19.8);
-    if (light3.current) light3.current.intensity = 2.8 + 0.6 * Math.sin(t * 16.4 + 2.3) + 0.3 * Math.cos(t * 24.1);
-    if (light4.current) light4.current.intensity = 2.4 + 0.5 * Math.sin(t * 12.1 + 0.7) + 0.3 * Math.cos(t * 18.5);
-    if (light5.current) light5.current.intensity = 2.4 + 0.5 * Math.sin(t * 14.8 + 3.1) + 0.3 * Math.cos(t * 21.0);
+    if (light1.current) light1.current.intensity = (isMobile ? 4.2 : 3.4) + 0.8 * Math.sin(t * 13.7) + 0.3 * Math.cos(t * 22.3);
+    if (!isMobile) {
+      if (light2.current) light2.current.intensity = 2.8 + 0.6 * Math.sin(t * 15.2 + 1.1) + 0.3 * Math.cos(t * 19.8);
+      if (light3.current) light3.current.intensity = 2.8 + 0.6 * Math.sin(t * 16.4 + 2.3) + 0.3 * Math.cos(t * 24.1);
+      if (light4.current) light4.current.intensity = 2.4 + 0.5 * Math.sin(t * 12.1 + 0.7) + 0.3 * Math.cos(t * 18.5);
+      if (light5.current) light5.current.intensity = 2.4 + 0.5 * Math.sin(t * 14.8 + 3.1) + 0.3 * Math.cos(t * 21.0);
+    }
 
-    // Continuous rising sparks/embers from the crevices
+    // Continuous rising sparks/embers from the crevices (throttled on mobile to protect frame rate)
     emberTimer.current += delta;
-    if (emberTimer.current > 0.04) {
+    const emberThreshold = isMobile ? 0.12 : 0.04;
+    if (emberTimer.current > emberThreshold) {
       emberTimer.current = 0;
       const r = Math.random();
       if (r < 0.45) {
@@ -422,11 +435,15 @@ function CellCreviceFire() {
   return (
     <group position={[0, 0, 0]}>
       {/* Dynamic warm flickering point lights inside the trenches illuminating stone walls */}
-      <pointLight ref={light1} position={[0, 0.20, 0]} distance={7.5} intensity={3.4} color="#ff500a" decay={1.6} />
-      <pointLight ref={light2} position={[-2.5, 0.20, 0]} distance={6.0} intensity={2.8} color="#ff6010" decay={1.6} />
-      <pointLight ref={light3} position={[2.5, 0.20, 0]} distance={6.0} intensity={2.8} color="#ff6010" decay={1.6} />
-      <pointLight ref={light4} position={[-5.0, 0.20, 0]} distance={5.5} intensity={2.4} color="#ff4505" decay={1.6} />
-      <pointLight ref={light5} position={[5.0, 0.20, 0]} distance={5.5} intensity={2.4} color="#ff4505" decay={1.6} />
+      <pointLight ref={light1} position={[0, 0.20, 0]} distance={isMobile ? 12 : 7.5} intensity={isMobile ? 4.2 : 3.4} color="#ff500a" decay={1.6} />
+      {!isMobile && (
+        <>
+          <pointLight ref={light2} position={[-2.5, 0.20, 0]} distance={6.0} intensity={2.8} color="#ff6010" decay={1.6} />
+          <pointLight ref={light3} position={[2.5, 0.20, 0]} distance={6.0} intensity={2.8} color="#ff6010" decay={1.6} />
+          <pointLight ref={light4} position={[-5.0, 0.20, 0]} distance={5.5} intensity={2.4} color="#ff4505" decay={1.6} />
+          <pointLight ref={light5} position={[5.0, 0.20, 0]} distance={5.5} intensity={2.4} color="#ff4505" decay={1.6} />
+        </>
+      )}
 
       {/* --- SUBTERRANEAN MAGMA FISSURE TRENCH BEDS (Recessed at y = 0.04 inside the cracks) --- */}
       {/* Central horizontal fissure between citizen rows */}
