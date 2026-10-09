@@ -54,17 +54,49 @@ export const Stone = memo(function Stone({ stone }: { stone: StoneData }) {
     } else if (typeof logicalCell === 'number') {
       const c = cells.find(c => c.index === logicalCell);
       if (c) {
-        const radius = stone.value === 1 ? 0.28 : 0.65;
-        
         let targetX = c.x;
         if (c.type === 'mandarin') {
           targetX = c.x > 0 ? c.x + 1.0 : c.x - 1.0;
         }
-        
-        v.set(targetX + jitterX, 0.5 + radius + bobOffset, c.z + jitterZ);
+
+        if (stone.value > 1) {
+          // Demonic Mandarin core sits centrally in the Mandarin half-disc
+          v.set(targetX, 0.5 + 0.65 + bobOffset, c.z);
+        } else {
+          // Citizen soul crystal: golden spiral spacing so every stone is distinct
+          const sameCellStones = stones.filter(s => s.logicalCell === logicalCell && s.value === 1);
+          const n = Math.max(0, sameCellStones.findIndex(s => s.id === stone.id));
+          const totalInCell = sameCellStones.length;
+
+          let offsetX = 0;
+          let offsetZ = 0;
+          let offsetY = 0;
+
+          if (c.type === 'mandarin') {
+            // In Mandarin cell, distribute citizen stones in an orbit around the big core
+            const angle = n * ((Math.PI * 2) / Math.max(1, totalInCell));
+            offsetX = Math.cos(angle) * 0.95;
+            offsetZ = Math.sin(angle) * 0.72;
+          } else {
+            // Sunflower golden angle distribution for square cell basin
+            if (n > 0) {
+              const goldenAngle = 2.399963;
+              const a = n * goldenAngle;
+              const r = Math.min(0.68, 0.22 * Math.sqrt(n));
+              offsetX = Math.cos(a) * r;
+              offsetZ = Math.sin(a) * r;
+            }
+            const layer = Math.floor(n / 7);
+            offsetY = layer * 0.16;
+          }
+
+          v.set(targetX + offsetX, 0.5 + 0.28 + offsetY + bobOffset, c.z + offsetZ);
+        }
       }
     } else if (logicalCell === 'hand') {
-      v.set(groupRef.current.position.x, 3.5 + bobOffset, groupRef.current.position.z);
+      const isAnim = useGameStore.getState().isAnimating;
+      const targetY = isAnim ? 3.2 + bobOffset : 0.78;
+      v.set(groupRef.current.position.x, targetY, groupRef.current.position.z);
     } else if (logicalCell === 'captured1' || logicalCell === 'captured2') {
       if (pileIndex.current.cell !== logicalCell) {
         const same = stones.filter(s => s.logicalCell === logicalCell);
@@ -78,7 +110,7 @@ export const Stone = memo(function Stone({ stone }: { stone: StoneData }) {
       v.set(px + Math.cos(a) * Math.min(r, 0.85), 0.5 + layer * 0.22 + (stone.value === 1 ? 0 : 0.2), pz + Math.sin(a) * Math.min(r, 0.85));
     }
 
-    groupRef.current.position.lerp(v, 0.16);
+    groupRef.current.position.lerp(v, 0.18);
 
     // Natural rotation and animations
     if (stone.value === 1) {
@@ -166,4 +198,4 @@ export const Stone = memo(function Stone({ stone }: { stone: StoneData }) {
       )}
     </group>
   );
-}, (prev, next) => prev.stone.id === next.stone.id);
+});

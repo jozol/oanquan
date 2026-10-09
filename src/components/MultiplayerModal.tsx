@@ -82,7 +82,7 @@ export function MultiplayerModal({ isOpen, onClose, initialRoomCode }: Multiplay
           break;
 
         case 'SYNC_CHECK':
-          syncScoresAndCounts(msg.p1Score, msg.p2Score, msg.cellCounts);
+          syncScoresAndCounts(msg.p1Score, msg.p2Score, msg.cells, msg.stones);
           break;
 
         case 'REMATCH_REQUEST':

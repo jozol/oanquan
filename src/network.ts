@@ -5,7 +5,7 @@ export type NetworkMessage =
   | { type: 'INIT_STATE'; cells: CellData[]; stones: StoneData[]; currentPlayer: number }
   | { type: 'MOVE'; startIndex: number; dir: 'cw' | 'ccw' }
   | { type: 'BORROW_SYNC'; player: number; borrowedStones: StoneData[] }
-  | { type: 'SYNC_CHECK'; p1Score: number; p2Score: number; cellCounts: number[] }
+  | { type: 'SYNC_CHECK'; p1Score: number; p2Score: number; cells: CellData[]; stones: StoneData[] }
   | { type: 'REMATCH_REQUEST' }
   | { type: 'REMATCH_ACCEPT'; cells: CellData[]; stones: StoneData[] }
   | { type: 'REMATCH_DECLINE' }

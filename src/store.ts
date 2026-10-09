@@ -60,7 +60,7 @@ interface GameState {
   setPeerStatus: (status: PeerStatus, error?: string | null) => void;
   setRematchState: (state: RematchState) => void;
   syncRemoteBoard: (cells: CellData[], stones: StoneData[], currentPlayer: number) => void;
-  syncScoresAndCounts: (p1Score: number, p2Score: number, cellCounts: number[]) => void;
+  syncScoresAndCounts: (p1Score: number, p2Score: number, cells: CellData[], stones: StoneData[]) => void;
   resetGameOnline: (cells?: CellData[], stones?: StoneData[]) => void;
   leaveOnline: () => void;
 }
@@ -136,16 +136,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ cells, stones, currentPlayer, cellToSow: null, isAnimating: false });
   },
 
-  syncScoresAndCounts: (p1Score, p2Score, cellCounts) => {
-    set(s => {
-      const updatedCells = s.cells.map((c, idx) => {
-        if (cellCounts[idx] !== undefined && cellCounts[idx] !== c.stones) {
-          return { ...c, stones: cellCounts[idx] };
-        }
-        return c;
-      });
-      return { p1Score, p2Score, cells: updatedCells };
-    });
+  syncScoresAndCounts: (p1Score, p2Score, cells, stones) => {
+    set({ p1Score, p2Score, cells, stones });
   },
 
   resetGameOnline: (customCells, customStones) => {
@@ -248,112 +240,151 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const sow = async () => {
       const state = get();
-      const cells = [...state.cells];
-      const stonesInHand = cells[currentIndex].stones;
-      cells[currentIndex] = { ...cells[currentIndex], stones: 0 };
       
-      const holdingStonesIds = state.stones.filter(s => s.logicalCell === currentIndex).map(s => s.id);
-      
-      // Lift stones
+      // 1. Gather all stones currently residing in currentIndex
+      const pickedStones = state.stones.filter(s => s.logicalCell === currentIndex);
+      if (pickedStones.length === 0) {
+        await endTurn();
+        return;
+      }
+
+      const stonesCount = pickedStones.length;
+
+      // 2. Lift all picked stones into hand
       set(s => ({
-        cells,
-        stones: s.stones.map(st => holdingStonesIds.includes(st.id) ? { ...st, logicalCell: 'hand' } : st)
+        cells: s.cells.map((c, i) => i === currentIndex ? { ...c, stones: 0 } : c),
+        stones: s.stones.map(st => st.logicalCell === currentIndex ? { ...st, logicalCell: 'hand' } : st)
       }));
+
       {
-        const [px, pz] = centerOf(cells[currentIndex]);
+        const [px, pz] = centerOf(state.cells[currentIndex]);
         fx.pickup(px, pz);
       }
 
       await delay(250);
 
-      let currentStones = get().stones;
-      let currentCells = get().cells;
+      // 3. Drop stones one by one into subsequent cells along chosen direction
+      let remainingHandStones = [...pickedStones];
 
-      for (let i = 0; i < stonesInHand; i++) {
+      for (let i = 0; i < stonesCount; i++) {
         currentIndex = getNextIndex(currentIndex, isCW);
-        
-        currentCells = [...currentCells];
-        currentCells[currentIndex] = { ...currentCells[currentIndex], stones: currentCells[currentIndex].stones + 1 };
-        
-        const stoneToDropId = holdingStonesIds[i];
-        currentStones = currentStones.map(st => st.id === stoneToDropId ? { ...st, logicalCell: currentIndex } : st);
-        
-        set({ cells: currentCells, stones: currentStones });
+        const stoneToDrop = remainingHandStones.shift()!;
+        const dropIndex = currentIndex;
+
+        // Place stone into dropIndex and sync cell count
+        const nextStones = get().stones.map(st => st.id === stoneToDrop.id ? { ...st, logicalCell: dropIndex } : st);
+        const nextCells = get().cells.map((c, idx) => {
+          if (idx === dropIndex) return { ...c, stones: nextStones.filter(s => s.logicalCell === dropIndex).length };
+          return c;
+        });
+
+        set({ cells: nextCells, stones: nextStones });
+
         {
-          const dropCell = currentCells[currentIndex];
+          const dropCell = nextCells[dropIndex];
           const [dx, dz] = centerOf(dropCell);
           fx.drop(dx, dz, dropCell.type === 'mandarin');
         }
         await delay(200);
       }
 
-      await delay(300);
+      await delay(320);
 
-      const endCell = currentCells[currentIndex];
-      
-      if (endCell.type === 'citizen' && endCell.stones > 1) {
+      // 4. Authentic Vietnamese Ô Ăn Quan Rules:
+      // The last stone was dropped into `currentIndex`.
+      // Now inspect the NEXT cell along the sowing direction:
+      const nextIndex = getNextIndex(currentIndex, isCW);
+      const nextCell = get().cells[nextIndex];
+      const stonesInNextCell = get().stones.filter(s => s.logicalCell === nextIndex);
+
+      // Case A: Next cell is a Citizen cell and HAS STONES -> Bốc rải tiếp!
+      if (nextCell.type === 'citizen' && stonesInNextCell.length > 0) {
+        currentIndex = nextIndex;
         await sow();
-      } else if (endCell.type === 'mandarin' || endCell.stones === 1) {
-        const nextIndex = getNextIndex(currentIndex, isCW);
-        if (currentCells[nextIndex].stones === 0) {
-          await captureSequence(nextIndex, isCW);
-        } else {
-          await endTurn();
-        }
+      }
+      // Case B: Next cell is EMPTY (0 stones) -> Kiểm tra ăn quân!
+      else if (stonesInNextCell.length === 0) {
+        await captureSequence(nextIndex, isCW);
+      }
+      // Case C: Next cell is Mandarin with stones -> Chững ô Quan, hết lượt!
+      else {
+        await endTurn();
       }
     };
 
     const captureSequence = async (emptyIndex: number, cw: boolean) => {
-      let nextEmpty = emptyIndex;
+      let currentEmpty = emptyIndex;
       let keepCapturing = true;
 
       while (keepCapturing) {
-        const targetIndex = getNextIndex(nextEmpty, cw);
-        let currentCells = get().cells;
-        
-        if (currentCells[targetIndex].stones > 0) {
-          currentCells = [...currentCells];
-          currentCells[targetIndex] = { ...currentCells[targetIndex], stones: 0 };
-          
-          let currentStones = get().stones;
-          const capturedIds = currentStones.filter(s => s.logicalCell === targetIndex).map(s => s.id);
-          
+        // Target cell to eat is right after currentEmpty
+        const targetIndex = getNextIndex(currentEmpty, cw);
+        const targetStones = get().stones.filter(s => s.logicalCell === targetIndex);
+
+        if (targetStones.length > 0) {
+          const targetCell = get().cells[targetIndex];
+          const isMandarin = targetCell.type === 'mandarin';
           let valueGained = 0;
-          currentStones = currentStones.map(st => {
-            if (capturedIds.includes(st.id)) {
+
+          const nextStones = get().stones.map(st => {
+            if (st.logicalCell === targetIndex) {
               valueGained += st.value;
-              return { ...st, logicalCell: get().currentPlayer === 1 ? 'captured1' : 'captured2' };
+              return {
+                ...st,
+                logicalCell: get().currentPlayer === 1 ? ('captured1' as const) : ('captured2' as const)
+              };
             }
             return st;
           });
 
+          const nextCells = get().cells.map((c, i) => {
+            if (i === targetIndex) return { ...c, stones: 0 };
+            return c;
+          });
+
           set(s => ({
-            cells: currentCells,
-            stones: currentStones,
+            cells: nextCells,
+            stones: nextStones,
             p1Score: s.currentPlayer === 1 ? s.p1Score + valueGained : s.p1Score,
             p2Score: s.currentPlayer === 2 ? s.p2Score + valueGained : s.p2Score,
           }));
 
           {
-            const [cx, cz] = centerOf(currentCells[targetIndex]);
+            const [cx, cz] = centerOf(targetCell);
             const reaper = get().currentPlayer === 1 ? 1 : 2;
-            const hadMandarin = currentCells[targetIndex].type === 'mandarin';
-            fx.capture(cx, cz, valueGained, reaper, hadMandarin);
+            fx.capture(cx, cz, valueGained, reaper, isMandarin);
             combo++;
-            if (hadMandarin) fx.mandarinSlain(valueGained);
+            if (isMandarin) fx.mandarinSlain(valueGained);
             else fx.combo(combo);
           }
 
-          await delay(400);
+          await delay(450);
 
-          const nextNextIndex = getNextIndex(targetIndex, cw);
-          if (get().cells[nextNextIndex].stones === 0) {
-            nextEmpty = nextNextIndex;
+          // Now targetIndex has been reaped and is EMPTY!
+          // Check for continuous capture (Ăn liên hoàn):
+          // Next cell must be EMPTY, and the cell after that must have STONES!
+          const afterTargetIndex = getNextIndex(targetIndex, cw);
+          const afterTargetStones = get().stones.filter(s => s.logicalCell === afterTargetIndex);
+
+          if (afterTargetStones.length === 0) {
+            const nextTargetIndex = getNextIndex(afterTargetIndex, cw);
+            const nextTargetStones = get().stones.filter(s => s.logicalCell === nextTargetIndex);
+
+            if (nextTargetStones.length > 0) {
+              // Valid continuous capture!
+              currentEmpty = afterTargetIndex;
+            } else {
+              // 2 empty cells in a row -> Stop!
+              keepCapturing = false;
+              await endTurn();
+            }
           } else {
+            // Cell after target has stones (not empty) -> Stop!
             keepCapturing = false;
             await endTurn();
           }
         } else {
+          // Cell after empty cell is also empty -> Stop!
           keepCapturing = false;
           await endTurn();
         }
@@ -361,77 +392,102 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
 
     const endTurn = async () => {
-      // Check win
-      const finalCells = get().cells;
-      if (finalCells[5].stones === 0 && finalCells[11].stones === 0) {
+      // 1. Check if both Mandarin cells are empty (5 & 11)
+      const m5Stones = get().stones.filter(s => s.logicalCell === 5);
+      const m11Stones = get().stones.filter(s => s.logicalCell === 11);
+
+      if (m5Stones.length === 0 && m11Stones.length === 0) {
+        // "Hết quan toàn dân thu về" - Game Over!
         let p1Extra = 0, p2Extra = 0;
-        finalCells.forEach(c => {
-          if (c.owner === 1) p1Extra += c.stones;
-          if (c.owner === 2) p2Extra += c.stones;
+        const clearedStones = get().stones.map(st => {
+          if (typeof st.logicalCell === 'number') {
+            const owner = get().cells[st.logicalCell].owner;
+            if (owner === 1) {
+              p1Extra += st.value;
+              return { ...st, logicalCell: 'captured1' as const };
+            } else if (owner === 2) {
+              p2Extra += st.value;
+              return { ...st, logicalCell: 'captured2' as const };
+            }
+          }
+          return st;
         });
+
+        const clearedCells = get().cells.map(c => ({ ...c, stones: 0 }));
         const p1Final = get().p1Score + p1Extra;
         const p2Final = get().p2Score + p2Extra;
         let winner = 'Draw!';
         if (p1Final > p2Final) winner = 'Player 1 Wins!';
         if (p2Final > p1Final) winner = 'Player 2 Wins!';
-        set({ p1Score: p1Final, p2Score: p2Final, isAnimating: false, winner });
+
+        set({
+          cells: clearedCells,
+          stones: clearedStones,
+          p1Score: p1Final,
+          p2Score: p2Final,
+          isAnimating: false,
+          winner
+        });
         fx.win(winner === 'Draw!' ? 'draw' : 'win');
       } else {
+        // Switch turn
         const nextPlayer = get().currentPlayer === 1 ? 2 : 1;
         set({ currentPlayer: nextPlayer });
         fx.turn();
-        
-        // --- "Rải Quân" Rule (Borrowing stones if empty) ---
-        const pCells = get().cells.filter(c => c.owner === nextPlayer);
-        const totalStones = pCells.reduce((sum, c) => sum + c.stones, 0);
-        
-        if (totalStones === 0) {
+
+        // 2. Rule of "Rải Quân" (Soul Debt): If active player has 0 stones in their 5 cells
+        const startIdx = nextPlayer === 1 ? 0 : 6;
+        const playerStones = get().stones.filter(s => {
+          return typeof s.logicalCell === 'number' && s.logicalCell >= startIdx && s.logicalCell <= startIdx + 4;
+        });
+
+        if (playerStones.length === 0) {
           set({ isAnimating: true });
-          await delay(500); // Pause so player sees the empty board before spawning
-          
-          let currentCells = [...get().cells];
-          let currentStones = [...get().stones];
-          
-          // Deduct 5 points
+          await delay(500);
+
+          // Deduct 5 points from player
           fx.borrow(nextPlayer);
           if (nextPlayer === 1) {
             set(s => ({ p1Score: s.p1Score - 5 }));
           } else {
             set(s => ({ p2Score: s.p2Score - 5 }));
           }
-          
-          // Spawn 1 stone in each of their 5 cells with deterministic jitter so both peers match
-          const startIdx = nextPlayer === 1 ? 0 : 6;
+
+          // Spawn 1 stone in each of player's 5 cells
+          const currentCells = [...get().cells];
+          const currentStones = [...get().stones];
           for (let i = 0; i < 5; i++) {
-             const cellIdx = startIdx + i;
-             currentCells[cellIdx] = { ...currentCells[cellIdx], stones: 1 };
-             const seed = (cellIdx * 19 + i * 37) % 97;
-             const jX = (((seed % 10) / 10) - 0.5) * 1.2;
-             const jZ = ((((Math.floor(seed / 10)) % 10) / 10) - 0.5) * 1.2;
-             currentStones.push({
-               id: `borrowed_${nextPlayer}_${cellIdx}_${i}`,
-               logicalCell: cellIdx,
-               value: 1,
-               jitterX: jX,
-               jitterZ: jZ
-             });
+            const cellIdx = startIdx + i;
+            currentCells[cellIdx] = { ...currentCells[cellIdx], stones: 1 };
+            currentStones.push({
+              id: `borrowed_${nextPlayer}_${Date.now()}_${i}`,
+              logicalCell: cellIdx,
+              value: 1,
+              jitterX: 0,
+              jitterZ: 0
+            });
           }
-          
+
           set({ cells: currentCells, stones: currentStones });
           await delay(500);
         }
-        
-        set({ isAnimating: false });
+
+        // Clean any stray hand stones if any exist
+        set(s => ({
+          isAnimating: false,
+          stones: s.stones.map(st => st.logicalCell === 'hand' ? { ...st, logicalCell: 0 } : st)
+        }));
       }
 
-      // If in online mode and we just made our move, transmit state check to verify parity
+      // If in online mode and we just made our move, transmit full verified state
       const state = get();
       if (state.gameMode === 'online' && !isRemote) {
         network.send({
           type: 'SYNC_CHECK',
           p1Score: state.p1Score,
           p2Score: state.p2Score,
-          cellCounts: state.cells.map(c => c.stones),
+          cells: state.cells,
+          stones: state.stones,
         });
       }
     };
