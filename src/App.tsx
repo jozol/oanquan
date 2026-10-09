@@ -266,14 +266,34 @@ export default function App() {
       {/* ---------- Top HUD ---------- */}
       {started && (
         <header className="hud-top">
-          <div className="hud-title">
-            <span>{t.title}</span>
-            {gameMode === 'online' && (
-              <span className="hud-mp-tag">
-                <span className="mp-tag-dot" />
-                {t.roomCode}: <b>{roomId?.toUpperCase()}</b> · <span className={`mp-role-tag p${myPlayerNumber}`}>{myPlayerNumber === 1 ? t.playerI : t.playerII}</span>
-              </span>
-            )}
+          <div className="hud-top-bar">
+            {/* Mobile Duel Crest: Player 1 */}
+            <div className={`mobile-score-crest p1 ${currentPlayer === 1 && !winner ? 'active' : ''}`}>
+              <div className="crest-gem gem-red" />
+              <div className="crest-body">
+                <span className="crest-label">{t.playerI}</span>
+                <span className="crest-score" key={`p1-${p1Score}`}>{p1Score}</span>
+              </div>
+            </div>
+
+            <div className="hud-title">
+              <span>{t.title}</span>
+              {gameMode === 'online' && (
+                <span className="hud-mp-tag">
+                  <span className="mp-tag-dot" />
+                  <b>{roomId?.toUpperCase()}</b>
+                </span>
+              )}
+            </div>
+
+            {/* Mobile Duel Crest: Player 2 */}
+            <div className={`mobile-score-crest p2 ${currentPlayer === 2 && !winner ? 'active' : ''}`}>
+              <div className="crest-body text-right">
+                <span className="crest-label">{t.playerII}</span>
+                <span className="crest-score" key={`p2-${p2Score}`}>{p2Score}</span>
+              </div>
+              <div className="crest-gem gem-blue" />
+            </div>
           </div>
         </header>
       )}
