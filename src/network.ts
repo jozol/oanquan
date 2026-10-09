@@ -9,16 +9,18 @@ export type NetworkMessage =
   | { type: 'REMATCH_REQUEST' }
   | { type: 'REMATCH_ACCEPT'; cells: CellData[]; stones: StoneData[] }
   | { type: 'REMATCH_DECLINE' }
-  | { type: 'EMOTE'; rune: string; text: string }
-  | { type: 'LEAVE' };
+  | { type: 'CHAT'; text: string; sender: 1 | 2 }
+  | { type: 'LEAVE' }
+  | { type: '__BC_HANDSHAKE_GUEST__' }
+  | { type: '__BC_HANDSHAKE_HOST__' };
 
 type MessageHandler = (msg: NetworkMessage) => void;
 type StatusHandler = (status: 'disconnected' | 'connecting' | 'waiting' | 'connected' | 'error', error?: string | null) => void;
 
 function generateCode(): string {
-  const chars = '23456789abcdefghjkmnpqrstuvwxyz'; // readable characters (omitting 0, 1, i, l, o)
+  const chars = '23456789abcdefghjkmnpqrstuvwxyz';
   let result = '';
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
@@ -26,13 +28,23 @@ function generateCode(): string {
 
 const PEER_PREFIX = 'oaq-';
 
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+];
+
 class NetworkService {
   private peer: Peer | null = null;
   private connection: DataConnection | null = null;
+  private broadcastChannel: BroadcastChannel | null = null;
   private messageListeners: Set<MessageHandler> = new Set();
   private statusListeners: Set<StatusHandler> = new Set();
   private currentRoomCode: string | null = null;
   private isHost: boolean = false;
+  private activeTransport: 'webrtc' | 'broadcast' | null = null;
+  private retryTimer: any = null;
 
   public onMessage(handler: MessageHandler): () => void {
     this.messageListeners.add(handler);
@@ -61,11 +73,12 @@ class NetworkService {
   }
 
   public isConnected(): boolean {
-    return !!this.connection && this.connection.open;
+    return this.activeTransport !== null;
   }
 
   /**
-   * Host creates a room with an automatic or specified short room code.
+   * Host creates a room: listens on both BroadcastChannel (for local same-browser tabs)
+   * and WebRTC (for cross-device / remote opponents).
    */
   public async createRoom(): Promise<string> {
     this.cleanup();
@@ -76,10 +89,15 @@ class NetworkService {
     const peerId = `${PEER_PREFIX}${code}`;
     this.currentRoomCode = code;
 
+    // 1. Setup local BroadcastChannel
+    this.setupLocalHostChannel(code);
+
+    // 2. Setup WebRTC Peer
     return new Promise((resolve, reject) => {
       try {
         const peer = new Peer(peerId, {
           debug: 1,
+          config: { iceServers: ICE_SERVERS },
         });
 
         this.peer = peer;
@@ -92,37 +110,40 @@ class NetworkService {
         });
 
         peer.on('connection', (conn) => {
-          // If another connection arrives, accept it
-          this.setupConnection(conn);
+          this.setupWebRTCConnection(conn);
         });
 
         peer.on('error', (err) => {
           console.warn('[PeerJS Host Error]:', err);
           if (err.type === 'unavailable-id') {
-            // ID already taken, retry with new code
+            // Retry with new code if collision occurs
             this.createRoom().then(resolve).catch(reject);
           } else {
-            this.notifyStatus('error', err.message || 'Connection error');
-            reject(err);
+            // Still waiting via local channel even if remote broker has temporary hiccups
+            if (!this.activeTransport) {
+              this.notifyStatus('waiting');
+            }
           }
         });
 
         peer.on('disconnected', () => {
-          this.notifyStatus('disconnected');
-        });
-
-        peer.on('close', () => {
-          this.notifyStatus('disconnected');
+          if (this.activeTransport === 'webrtc') {
+            this.notifyStatus('disconnected');
+          }
         });
       } catch (err: any) {
-        this.notifyStatus('error', err?.message || 'Failed to initialize peer');
-        reject(err);
+        console.warn('[PeerJS Host Init Exception]:', err);
+        // Fall back to local channel waiting
+        this.notifyStatus('waiting');
+        resolve(code);
       }
     });
   }
 
   /**
-   * Guest joins an existing room by its room code (e.g. "4f9k" or "oaq-4f9k").
+   * Guest joins an existing room:
+   * First tries BroadcastChannel (instant for local tabs), and simultaneously
+   * connects via WebRTC with automatic retry for broker propagation delay.
    */
   public async joinRoom(inputCode: string): Promise<string> {
     this.cleanup();
@@ -133,51 +154,147 @@ class NetworkService {
     const targetPeerId = `${PEER_PREFIX}${cleanCode}`;
     this.currentRoomCode = cleanCode;
 
-    return new Promise((resolve, reject) => {
-      try {
-        const peer = new Peer({
-          debug: 1,
-        });
+    // 1. Try local BroadcastChannel handshake
+    this.setupLocalGuestChannel(cleanCode);
 
-        this.peer = peer;
+    // 2. Try WebRTC with retry mechanism
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const maxAttempts = 6;
 
-        peer.on('open', () => {
-          const conn = peer.connect(targetPeerId, {
-            reliable: true,
-          });
-
-          this.setupConnection(conn);
+      const connectPeer = () => {
+        if (this.activeTransport === 'broadcast') {
+          // Already connected locally
           resolve(cleanCode);
-        });
+          return;
+        }
 
-        peer.on('error', (err) => {
-          console.warn('[PeerJS Guest Error]:', err);
-          let message = err.message || 'Could not find or connect to room';
-          if (err.type === 'peer-unavailable') {
-            message = 'Sanctuary not found. The room code may be incorrect or expired.';
+        try {
+          if (!this.peer) {
+            this.peer = new Peer({
+              debug: 1,
+              config: { iceServers: ICE_SERVERS },
+            });
           }
-          this.notifyStatus('error', message);
-          reject(err);
-        });
 
-        peer.on('disconnected', () => {
-          this.notifyStatus('disconnected');
-        });
+          const peer = this.peer;
 
-        peer.on('close', () => {
-          this.notifyStatus('disconnected');
-        });
-      } catch (err: any) {
-        this.notifyStatus('error', err?.message || 'Failed to connect');
-        reject(err);
-      }
+          const attemptConnect = () => {
+            if (this.activeTransport) return;
+            attempts++;
+
+            const conn = peer.connect(targetPeerId, {
+              reliable: true,
+            });
+
+            this.setupWebRTCConnection(conn);
+
+            conn.on('error', (connErr) => {
+              console.warn(`[WebRTC conn attempt ${attempts} error]:`, connErr);
+            });
+          };
+
+          if (peer.open) {
+            attemptConnect();
+          } else {
+            peer.once('open', () => {
+              attemptConnect();
+            });
+          }
+
+          peer.on('error', (err) => {
+            console.warn(`[PeerJS Guest Error attempt ${attempts}]:`, err);
+            if (this.activeTransport === 'broadcast') return;
+
+            if (err.type === 'peer-unavailable') {
+              if (attempts < maxAttempts) {
+                this.notifyStatus('connecting', `Locating sanctuary... (attempt ${attempts}/${maxAttempts})`);
+                this.retryTimer = setTimeout(() => {
+                  if (!this.activeTransport) {
+                    attemptConnect();
+                  }
+                }, 1000);
+                return;
+              }
+              this.notifyStatus('error', 'Sanctuary not found. The room code may be incorrect or expired.');
+            } else {
+              this.notifyStatus('error', err.message || 'Connection error');
+            }
+          });
+        } catch (err: any) {
+          console.warn('[PeerJS Guest Init Exception]:', err);
+        }
+
+        resolve(cleanCode);
+      };
+
+      connectPeer();
     });
   }
 
-  private setupConnection(conn: DataConnection) {
+  // --- Local BroadcastChannel Transport ---
+
+  private setupLocalHostChannel(code: string) {
+    if (typeof BroadcastChannel === 'undefined') return;
+    try {
+      this.broadcastChannel = new BroadcastChannel(`oanquan_room_${code}`);
+      this.broadcastChannel.onmessage = (e) => {
+        const msg = e.data as NetworkMessage;
+        if (msg.type === '__BC_HANDSHAKE_GUEST__') {
+          // Respond to guest
+          this.activeTransport = 'broadcast';
+          this.broadcastChannel?.postMessage({ type: '__BC_HANDSHAKE_HOST__' });
+          this.notifyStatus('connected');
+        } else if (msg.type === 'LEAVE') {
+          this.notifyStatus('disconnected', 'Opponent disconnected');
+        } else if (!msg.type.startsWith('__BC_')) {
+          this.notifyMessage(msg);
+        }
+      };
+    } catch (err) {
+      console.warn('[BroadcastChannel Host Error]:', err);
+    }
+  }
+
+  private setupLocalGuestChannel(code: string) {
+    if (typeof BroadcastChannel === 'undefined') return;
+    try {
+      this.broadcastChannel = new BroadcastChannel(`oanquan_room_${code}`);
+      this.broadcastChannel.onmessage = (e) => {
+        const msg = e.data as NetworkMessage;
+        if (msg.type === '__BC_HANDSHAKE_HOST__') {
+          // Host responded! Connection established
+          this.activeTransport = 'broadcast';
+          if (this.retryTimer) clearTimeout(this.retryTimer);
+          this.notifyStatus('connected');
+        } else if (msg.type === 'LEAVE') {
+          this.notifyStatus('disconnected', 'Opponent disconnected');
+        } else if (!msg.type.startsWith('__BC_')) {
+          this.notifyMessage(msg);
+        }
+      };
+
+      // Send initial handshake ping
+      this.broadcastChannel.postMessage({ type: '__BC_HANDSHAKE_GUEST__' });
+      // Repeat handshake ping after 200ms in case host was loading
+      setTimeout(() => {
+        if (!this.activeTransport) {
+          this.broadcastChannel?.postMessage({ type: '__BC_HANDSHAKE_GUEST__' });
+        }
+      }, 200);
+    } catch (err) {
+      console.warn('[BroadcastChannel Guest Error]:', err);
+    }
+  }
+
+  // --- WebRTC Transport ---
+
+  private setupWebRTCConnection(conn: DataConnection) {
     this.connection = conn;
 
     conn.on('open', () => {
+      this.activeTransport = 'webrtc';
+      if (this.retryTimer) clearTimeout(this.retryTimer);
       this.notifyStatus('connected');
     });
 
@@ -188,27 +305,56 @@ class NetworkService {
     });
 
     conn.on('close', () => {
-      this.notifyStatus('disconnected', 'Opponent disconnected');
+      if (this.activeTransport === 'webrtc') {
+        this.notifyStatus('disconnected', 'Opponent disconnected');
+        this.activeTransport = null;
+      }
       this.connection = null;
     });
 
     conn.on('error', (err) => {
       console.warn('[PeerJS DataConnection Error]:', err);
-      this.notifyStatus('error', err?.message || 'Data connection error');
+      if (this.activeTransport === 'webrtc') {
+        this.notifyStatus('error', err?.message || 'Data connection error');
+      }
     });
   }
 
   public send(msg: NetworkMessage) {
+    // 1. BroadcastChannel transport
+    if (this.activeTransport === 'broadcast' && this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage(msg);
+      } catch (err) {
+        console.error('[BroadcastChannel Send Error]:', err);
+      }
+      return;
+    }
+
+    // 2. WebRTC transport
     if (this.connection && this.connection.open) {
       try {
         this.connection.send(msg);
       } catch (err) {
-        console.error('[PeerJS Send Error]:', err);
+        console.error('[WebRTC Send Error]:', err);
       }
     }
   }
 
   public cleanup() {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({ type: 'LEAVE' });
+        this.broadcastChannel.close();
+      } catch (_) {}
+      this.broadcastChannel = null;
+    }
+
     if (this.connection) {
       try {
         this.connection.send({ type: 'LEAVE' });
@@ -226,6 +372,7 @@ class NetworkService {
 
     this.currentRoomCode = null;
     this.isHost = false;
+    this.activeTransport = null;
     this.notifyStatus('disconnected');
   }
 }

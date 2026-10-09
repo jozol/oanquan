@@ -105,6 +105,13 @@ export function MultiplayerModal({ isOpen, onClose, initialRoomCode }: Multiplay
     };
   }, [setGameMode, setPeerStatus, setRematchState, syncRemoteBoard, syncScoresAndCounts, resetGameOnline, executeMove, start, started, onClose, t.opponentDisconnected]);
 
+  // Auto-create room when opening Host tab
+  useEffect(() => {
+    if (isOpen && activeTab === 'host' && !hostRoomCode && !isHosting && !initialRoomCode) {
+      handleHost();
+    }
+  }, [isOpen, activeTab, hostRoomCode, isHosting, initialRoomCode]);
+
   // If initialRoomCode is passed (via URL parameter), auto-populate and trigger join
   useEffect(() => {
     if (initialRoomCode) {
@@ -187,13 +194,10 @@ export function MultiplayerModal({ isOpen, onClose, initialRoomCode }: Multiplay
               {!hostRoomCode && (
                 <div className="mp-intro">
                   <p className="mp-desc">{t.youAreP1}</p>
-                  <button
-                    className="btn-d2 btn-big mp-action-btn"
-                    onClick={handleHost}
-                    disabled={isHosting}
-                  >
-                    {isHosting ? '...' : t.createMatch}
-                  </button>
+                  <div className="mp-status-pill">
+                    <span className="mp-beacon-dot" />
+                    <span>{isHosting ? t.joiningRoom : t.createMatch}</span>
+                  </div>
                 </div>
               )}
 
@@ -241,8 +245,8 @@ export function MultiplayerModal({ isOpen, onClose, initialRoomCode }: Multiplay
                     {isJoining ? '...' : t.joinBtn}
                   </button>
                 </div>
-                {peerError && <p className="mp-error-msg">⚠️ {peerError}</p>}
-                {isJoining && (
+                {peerError && <p className="mp-error-msg">{peerError.startsWith('Locating') ? `⏳ ${peerError}` : `⚠️ ${peerError}`}</p>}
+                {(isJoining || peerStatus === 'connecting') && !peerError && (
                   <div className="mp-status-pill">
                     <span className="mp-beacon-dot" />
                     <span>{t.joiningRoom}</span>
