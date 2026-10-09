@@ -1,0 +1,222 @@
+import { create } from 'zustand';
+
+export type Lang = 'vi' | 'en';
+
+interface I18nState {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  toggleLang: () => void;
+}
+
+const getInitialLang = (): Lang => {
+  try {
+    const saved = localStorage.getItem('oanquan_lang');
+    if (saved === 'en' || saved === 'vi') return saved;
+  } catch {
+    /* ignore */
+  }
+  return 'vi'; // Vietnamese default as requested
+};
+
+export const useI18n = create<I18nState>((set, get) => ({
+  lang: getInitialLang(),
+  setLang: (lang: Lang) => {
+    try {
+      localStorage.setItem('oanquan_lang', lang);
+    } catch {
+      /* ignore */
+    }
+    set({ lang });
+  },
+  toggleLang: () => {
+    const next: Lang = get().lang === 'vi' ? 'en' : 'vi';
+    try {
+      localStorage.setItem('oanquan_lang', next);
+    } catch {
+      /* ignore */
+    }
+    set({ lang: next });
+  },
+}));
+
+export const translations = {
+  vi: {
+    title: 'Ô Ăn Quan',
+    kicker: '— Trò chơi dân gian rải quân & ăn quân —',
+    sub: 'Điện Thờ Các Quan Tiền Triều',
+    enterBtn: 'Bắt Đầu Nghi Lễ',
+    titleTip: 'Kéo hoặc nhấn vào ô để rải quân · Ăn quân qua ô trống · Đập tan ô Quan',
+    playerI: 'Người Chơi I',
+    playerII: 'Người Chơi II',
+    statusSilent: 'Điện thờ chìm vào im lặng',
+    statusSowing: 'Quân hồn đang được rải…',
+    statusChooseDir: 'Chọn hướng rải quân phía trên hoặc kéo ô',
+    statusSelectCell: 'Chọn một trong các ô sáng của bạn (1–5)',
+    sowCW: 'Rải Cùng Chiều KĐH',
+    sowCCW: 'Rải Ngược Chiều KĐH',
+    sowLeft: 'Trái · [Q / ←]',
+    sowRight: 'Phải · [E / →]',
+    cell: 'Ô',
+    cancel: 'Hủy',
+    grimoireBtn: 'Luật Chơi & Điển Tích (H / ?)',
+    tacticalBtn: 'Góc Nhìn Chiến Thuật (T)',
+    cinematicBtn: 'Góc Nhìn 3D Điện Ảnh (T)',
+    muteBtn: 'Tắt Tiếng (M)',
+    unmuteBtn: 'Bật Tiếng (M)',
+    restartBtn: 'Thiết Lập Lại Bàn Cờ (R)',
+    langToggle: 'Chuyển Ngôn Ngữ: Tiếng Việt / English',
+    fightAgain: 'Đấu Lại',
+    winP1Title: 'Người Chơi I Đại Thắng',
+    winP2Title: 'Người Chơi II Đại Thắng',
+    drawTitle: 'Bất Phân Thắng Bại',
+    winKicker: 'Điện thờ đã chọn ra chủ nhân',
+    drawKicker: 'Quân hồn chia đều đôi bên',
+    grimoireHeaderKicker: '— Cổ thư điển tích đền quan —',
+    grimoireHeaderTitle: 'Cổ Thư Ô Ăn Quan',
+    grimoireClose: 'Đóng Cổ Thư',
+    grimoireBack: 'Quay Lại Điện Thờ',
+    tabRitual: '📜 Luật Chơi',
+    tabReaping: '✨ Rải & Ăn Quân',
+    tabMandarin: '👹 Ô Quan Lớn',
+    tabDebt: '🕯️ Rải Quân Khi Hết',
+    tabControls: '⚔️ Phím Tắt & Thao Tác',
+    // Grimoire content
+    ritualTitle: 'Bàn Cờ & Các Hạt Quân',
+    ritualP1: 'Ô Ăn Quan là trò chơi chiến thuật dân gian truyền thống lâu đời của người Việt. Hai người chơi đối diện nhau qua Điện Thờ Quân Hồn:',
+    ritualCitizen: '10 Ô Dân: Bố trí thành hai hàng, mỗi hàng 5 ô. Mỗi ô ban đầu chứa 5 hạt quân (mỗi hạt trị giá 1 điểm).',
+    ritualMandarin: '2 Ô Quan: Hai hình bán nguyệt ở hai đầu bàn cờ (Đông & Tây), mỗi ô có một Hạt Chúa (trị giá 10 điểm).',
+    ritualWin: 'Điều Kiện Thắng: Trò chơi kết thúc khi cả 2 ô Quan đều đã bị ăn sạch. Quân còn lại ở phía bên nào thuộc về người chơi bên đó. Ai gom được nhiều quân hồn hơn sẽ là người chiến thắng!',
+    reapingTitle: 'Quy Tắc Rải Quân & Ăn Quân',
+    reapingP1: 'Đến lượt mình, người chơi chọn bất kỳ một ô dân có quân nào trên hàng của mình:',
+    reapingStep1: 'Rải Quân: Bốc toàn bộ quân trong ô đã chọn và rải lần lượt từng hạt vào các ô liền kề theo chiều kim đồng hồ hoặc ngược chiều kim đồng hồ.',
+    reapingStep2: 'Rải Nối Tiếp: Nếu hạt cuối cùng rơi vào một ô còn quân, tiếp tục bốc toàn bộ quân trong ô đó và rải tiếp theo chiều ban đầu.',
+    reapingStep3: 'Ăn Quân: Nếu hạt cuối cùng rơi vào một ô, và ô tiếp theo liền kề là Ô TRỐNG, còn ô kế tiếp nữa CÓ QUÂN — người chơi ĂN TOÀN BỘ quân trong ô đó!',
+    reapingStep4: 'Ăn Liên Hoàn: Nếu sau ô vừa bị ăn lại là một ô trống rồi đến ô có quân, người chơi được ăn tiếp ô đó thành chuỗi ăn liên hoàn!',
+    reapingStep5: 'Dứt Điểm Lượt: Nếu gặp 2 ô trống liên tiếp, hoặc ô kế tiếp là ô có quân không đủ điều kiện ăn, lượt chơi kết thúc.',
+    mandarinTitle: 'Đập Tan Ô Quan (Ăn Quan)',
+    mandarinP1: 'Hai ô Quan chứa linh hồn chúa tể:',
+    mandarinRule1: 'Người chơi không thể bốc quân từ ô Quan để rải. Ô Quan chỉ nhận quân rơi vào hoặc bị ăn.',
+    mandarinRule2: 'Ăn được ô Quan đem lại ít nhất 10 điểm của Hạt Chúa cộng thêm tất cả số hạt dân đã rơi vào ô Quan.',
+    mandarinRule3: 'Khi ô Quan bị triệt hạ, điện thờ sẽ rung chuyển kèm hiệu ứng chấn động mạnh mẽ!',
+    debtTitle: 'Luật Rải Quân (Khi Hết Quân Trên Hàng)',
+    debtP1: 'Một lãnh chúa không thể bắt đầu lượt với một hàng trống trơn:',
+    debtRule1: 'Nếu đến lượt bạn mà cả 5 ô dân trên hàng của bạn đều hết sạch quân (0 hạt), bạn bắt buộc phải thực hiện luật Rải Quân.',
+    debtRule2: 'Bạn lấy 5 hạt quân từ đài tế điểm số của mình (bị trừ 5 điểm) để đặt vào mỗi ô dân của mình 1 hạt.',
+    debtRule3: 'Sau đó, bạn chọn một trong 5 ô vừa được rải để thực hiện lượt chơi như bình thường.',
+    controlsTitle: 'Thao Tác Điều Khiển & Phím Tắt',
+    key15: 'Chọn trực tiếp ô thứ 1 đến ô thứ 5 của bạn',
+    keyLeft: 'Rải cùng chiều kim đồng hồ (sang trái)',
+    keyRight: 'Rải ngược chiều kim đồng hồ (sang phải)',
+    keyDrag: 'Kéo ô sang trái hoặc phải để chọn hướng',
+    keyArrows: 'Nhấn vào mũi tên 3D ◀ / ▶ bay lơ lửng trên ô',
+    keyTactical: 'Chuyển đổi góc nhìn trên cao (chiến thuật) / góc 3D',
+    keyTome: 'Mở / đóng Cổ Thư Luật Chơi này',
+    keyMute: 'Bật / tắt nhạc nền u tối và âm thanh',
+    keyRestart: 'Thiết lập lại bàn cờ từ đầu',
+    keyEsc: 'Hủy chọn ô / đóng cửa sổ popup',
+    // Dynamic banner text
+    bannerP1Turn: 'LƯỢT NGƯỜI CHƠI I',
+    bannerP1Sub: 'Hỡi Người Chơi I, hãy điều khiển quân hồn',
+    bannerP2Turn: 'LƯỢT NGƯỜI CHƠI II',
+    bannerP2Sub: 'Hỡi Người Chơi II, hãy điều khiển quân hồn',
+    bannerMandarinSlain: 'ĐÃ ĐẬP TAN Ô QUAN!',
+    bannerMandarinSlainSub: 'Thu được {n} quân hồn vào đài tế!',
+    bannerCombo: 'LIÊN HOÀN ĂN QUÂN ×{n}!',
+    bannerDebtP1: 'RẢI QUÂN — NỢ HỒN',
+    bannerDebtP1Sub: 'Người Chơi I trích 5 quân từ đài tế',
+    bannerDebtP2: 'RẢI QUÂN — NỢ HỒN',
+    bannerDebtP2Sub: 'Người Chơi II trích 5 quân từ đài tế',
+  },
+  en: {
+    title: 'Ô Ăn Quan',
+    kicker: '— a game of sowing & reaping —',
+    sub: 'The Altar of the Fallen Mandarins',
+    enterBtn: 'Enter the Altar',
+    titleTip: 'Drag or click a cell to sow · Chain empty-cell reap combos · Slay the Mandarins',
+    playerI: 'Player I',
+    playerII: 'Player II',
+    statusSilent: 'The altar falls silent',
+    statusSowing: 'The souls are sown…',
+    statusChooseDir: 'Choose sowing direction above or drag',
+    statusSelectCell: 'Select one of your glowing cells (1–5)',
+    sowCW: 'Sow Clockwise',
+    sowCCW: 'Sow Counter-CW',
+    sowLeft: 'Left · [Q / ←]',
+    sowRight: 'Right · [E / →]',
+    cell: 'Cell',
+    cancel: 'Cancel',
+    grimoireBtn: 'Tome of Rules (H / ?)',
+    tacticalBtn: 'Tactical Top-Down View (T)',
+    cinematicBtn: 'Cinematic 3D View (T)',
+    muteBtn: 'Mute Sound (M)',
+    unmuteBtn: 'Unmute Sound (M)',
+    restartBtn: 'Restart Ritual (R)',
+    langToggle: 'Switch Language: Tiếng Việt / English',
+    fightAgain: 'Fight Again',
+    winP1Title: 'Player I Prevails',
+    winP2Title: 'Player II Prevails',
+    drawTitle: 'Stalemate of Souls',
+    winKicker: 'The altar has chosen',
+    drawKicker: 'The souls are evenly claimed',
+    grimoireHeaderKicker: '— ancient chronicles of the altar —',
+    grimoireHeaderTitle: 'Tome of the Mandarins',
+    grimoireClose: 'Close Grimoire',
+    grimoireBack: 'Return to the Altar',
+    tabRitual: '📜 The Ritual',
+    tabReaping: '✨ Sowing & Reaping',
+    tabMandarin: '👹 Demon Cores',
+    tabDebt: '🕯️ Soul Debt',
+    tabControls: '⚔️ Controls & Keys',
+    // Grimoire content
+    ritualTitle: 'The Board & The Soul Tokens',
+    ritualP1: 'Ô Ăn Quan is the legendary strategic folk ritual of ancient Vietnam. Two players face each other across the Altar of Souls:',
+    ritualCitizen: '10 Citizen Cells (Dân): Arranged in two rows of 5. Each cell begins with 5 souls (worth 1 point each).',
+    ritualMandarin: '2 Mandarin Cells (Quan): Semicircular shrines at the East and West flanks, each guarded by a towering Demon Core (worth 10 points).',
+    ritualWin: 'Victory Condition: The duel concludes when both Mandarin cells are completely devoured. Remaining souls on each player\'s side return to their tribute pedestal. The sovereign with the highest soul essence triumphs!',
+    reapingTitle: 'The Art of Sowing & Reaping',
+    reapingP1: 'On your turn, choose any occupied citizen cell on your side of the altar:',
+    reapingStep1: 'Sowing: Pick up all souls and deposit them one by one into adjacent cells in either Clockwise or Counter-Clockwise direction.',
+    reapingStep2: 'Continuous Flow: If the last soul drops into an occupied cell, scoop up all souls within and continue sowing in the same direction!',
+    reapingStep3: 'The Reap (Ăn Quân): If your last soul lands, and the immediately adjacent cell is EMPTY, and the cell beyond it contains souls — you REAP all souls in that cell!',
+    reapingStep4: 'Multi-Reap Cascades: If an empty cell follows a reaped cell, you continue reaping sequentially along the altar perimeter in a devastating chain!',
+    reapingStep5: 'Turn Halt: If two or more adjacent cells are empty, or the next cell is occupied and not eligible, your turn peacefully concludes.',
+    mandarinTitle: 'Slaying the Demon Mandarins',
+    mandarinP1: 'The Mandarin Shrines hold ancient demonic power:',
+    mandarinRule1: 'Mandarin cells cannot be lifted or picked up by players to sow. They can only be fed by passing souls, or reaped.',
+    mandarinRule2: 'Reaping a Mandarin grants 10 base points plus any extra souls that were sown into it.',
+    mandarinRule3: 'When slain, the altar reverberates with shockwaves, screen shake, and an ominous bell chime.',
+    debtTitle: 'Soul Debt: The Rite of Rải Quân',
+    debtP1: 'A sovereign cannot command an empty altar:',
+    debtRule1: 'If it is your turn and all 5 of your citizen cells are completely barren (0 souls), you must enact Rải Quân.',
+    debtRule2: 'You borrow 5 souls from your tribute score (deducting 5 points from your liquid orb) and bestow 1 soul into each of your 5 cells.',
+    debtRule3: 'You then proceed to choose one of your restored cells to sow as normal.',
+    controlsTitle: 'Tactical Controls & Hotkeys',
+    key15: 'Select your 1st through 5th cell directly',
+    keyLeft: 'Sow Clockwise (Left)',
+    keyRight: 'Sow Counter-Clockwise (Right)',
+    keyDrag: 'Drag cell horizontally left/right to sow',
+    keyArrows: 'Click floating ◀ / ▶ badges directly on the board',
+    keyTactical: 'Toggle Tactical Top-Down / Cinematic 3D View',
+    keyTome: 'Open / Close this Tome of Rules',
+    keyMute: 'Mute / Unmute dark ambient music & SFX',
+    keyRestart: 'Restart game / reset the altar',
+    keyEsc: 'Deselect active cell / Close tome',
+    // Dynamic banner text
+    bannerP1Turn: "PLAYER I'S RITUAL",
+    bannerP1Sub: 'Command your souls',
+    bannerP2Turn: "PLAYER II'S RITUAL",
+    bannerP2Sub: 'Command your souls',
+    bannerMandarinSlain: 'MANDARIN CORES CONSUMED!',
+    bannerMandarinSlainSub: '{n} souls claimed for the altar!',
+    bannerCombo: 'REAP COMBO ×{n}!',
+    bannerDebtP1: 'SOUL TRIBUTE: BORROWED',
+    bannerDebtP1Sub: 'Player I pays 5 tribute souls',
+    bannerDebtP2: 'SOUL TRIBUTE: BORROWED',
+    bannerDebtP2Sub: 'Player II pays 5 tribute souls',
+  },
+} as const;
+
+export function t(key: keyof typeof translations['en']): string {
+  const lang = useI18n.getState().lang;
+  return translations[lang][key] || translations['en'][key] || key;
+}
