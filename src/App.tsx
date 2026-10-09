@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
-import { useGameStore } from './store';
+import { useGameStore, initGame } from './store';
 import { useFx } from './fx';
 import { sfx } from './audio';
 import { Game } from './Game';
 import { useI18n, translations } from './i18n';
+import { MultiplayerModal } from './components/MultiplayerModal';
+import { network } from './network';
 
 const MAX_ORB = 40; // score at which an orb is "full"
 
@@ -69,7 +71,27 @@ const Icon = {
 };
 
 export default function App() {
-  const { p1Score, p2Score, currentPlayer, cellToSow, cells, winner, isAnimating, resetGame, endDrag, updateDrag, executeMove, selectCell } = useGameStore();
+  const {
+    p1Score,
+    p2Score,
+    currentPlayer,
+    cellToSow,
+    cells,
+    winner,
+    isAnimating,
+    resetGame,
+    endDrag,
+    updateDrag,
+    executeMove,
+    selectCell,
+    gameMode,
+    myPlayerNumber,
+    roomId,
+    rematchState,
+    setRematchState,
+    resetGameOnline,
+    leaveOnline,
+  } = useGameStore();
   const started = useFx(s => s.started);
   const doorsOpening = useFx(s => s.doorsOpening);
   const muted = useFx(s => s.muted);
@@ -84,6 +106,19 @@ export default function App() {
   const lang = useI18n(s => s.lang);
   const toggleLang = useI18n(s => s.toggleLang);
   const t = translations[lang];
+
+  const [multiplayerOpen, setMultiplayerOpen] = useState(false);
+  const [inviteRoomCode, setInviteRoomCode] = useState<string | null>(null);
+
+  // Auto-detect ?room=... from URL to prompt join flow
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    if (roomParam) {
+      setInviteRoomCode(roomParam);
+      setMultiplayerOpen(true);
+    }
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'ritual' | 'reaping' | 'mandarin' | 'debt' | 'controls'>('ritual');
   const grimoireBtnRef = useRef<HTMLButtonElement>(null);
@@ -166,7 +201,10 @@ export default function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === 'Escape') {
-        if (grimoireOpen) {
+        if (multiplayerOpen) {
+          setMultiplayerOpen(false);
+          sfx.click();
+        } else if (grimoireOpen) {
           setGrimoireOpen(false);
           sfx.click();
         } else if (cellToSow !== null) {
@@ -186,7 +224,7 @@ export default function App() {
         toggleMute();
         sfx.click();
       } else if (e.key === 'r' || e.key === 'R') {
-        if (!isAnimating) {
+        if (!isAnimating && gameMode !== 'online') {
           sfx.click();
           resetGame();
         }
@@ -199,7 +237,8 @@ export default function App() {
           executeMove(cellToSow, 'ccw');
         }
       } else if (!isAnimating && !winner && started) {
-        // Quick number select 1-5 for active player
+        // Quick number select 1-5 for active player (only if my turn)
+        if (gameMode === 'online' && myPlayerNumber !== currentPlayer) return;
         const num = parseInt(e.key, 10);
         if (num >= 1 && num <= 5) {
           const baseIndex = currentPlayer === 1 ? 0 : 6;
@@ -229,6 +268,12 @@ export default function App() {
         <header className="hud-top">
           <div className="hud-title">
             <span>{t.title}</span>
+            {gameMode === 'online' && (
+              <span className="hud-mp-tag">
+                <span className="mp-tag-dot" />
+                {t.roomCode}: <b>{roomId?.toUpperCase()}</b> · <span className={`mp-role-tag p${myPlayerNumber}`}>{myPlayerNumber === 1 ? t.playerI : t.playerII}</span>
+              </span>
+            )}
           </div>
         </header>
       )}
@@ -272,15 +317,27 @@ export default function App() {
           >
             {muted ? Icon.mute : Icon.sound}
           </button>
-          <button 
-            id="restart-btn" 
-            className="icon-btn" 
-            onClick={() => { sfx.click(); resetGame(); }} 
-            aria-label={t.restartBtn} 
-            title={t.restartBtn}
-          >
-            {Icon.restart}
-          </button>
+          {gameMode === 'online' ? (
+            <button 
+              id="leave-btn" 
+              className="icon-btn" 
+              onClick={() => { sfx.click(); leaveOnline(); }} 
+              aria-label={t.leaveRoom} 
+              title={t.leaveRoom}
+            >
+              {Icon.cross}
+            </button>
+          ) : (
+            <button 
+              id="restart-btn" 
+              className="icon-btn" 
+              onClick={() => { sfx.click(); resetGame(); }} 
+              aria-label={t.restartBtn} 
+              title={t.restartBtn}
+            >
+              {Icon.restart}
+            </button>
+          )}
         </div>
       )}
 
@@ -337,7 +394,15 @@ export default function App() {
               <span className="rune">ᛟ</span>
             </div>
             <div className="belt-status">
-              {winner ? t.statusSilent : isAnimating ? t.statusSowing : cellToSow !== null ? t.statusChooseDir : t.statusSelectCell}
+              {winner 
+                ? t.statusSilent 
+                : isAnimating 
+                  ? t.statusSowing 
+                  : gameMode === 'online' && myPlayerNumber !== currentPlayer
+                    ? t.opponentTurn
+                    : cellToSow !== null 
+                      ? t.statusChooseDir 
+                      : t.statusSelectCell}
             </div>
           </div>
 
@@ -529,16 +594,28 @@ export default function App() {
             <span />
           </div>
           <p className="title-sub">{t.sub}</p>
-          <button 
-            id="start-btn" 
-            className="btn-d2 btn-big" 
-            onClick={start} 
-            disabled={doorsOpening || started}
-            onMouseEnter={() => sfx.hover()} 
-            tabIndex={started ? -1 : 0}
-          >
-            {t.enterBtn}
-          </button>
+          <div className="title-actions">
+            <button 
+              id="start-btn" 
+              className="btn-d2 btn-big" 
+              onClick={start} 
+              disabled={doorsOpening || started}
+              onMouseEnter={() => sfx.hover()} 
+              tabIndex={started ? -1 : 0}
+            >
+              {t.enterBtn}
+            </button>
+            <button 
+              id="mp-btn" 
+              className="btn-d2 btn-big btn-mp" 
+              onClick={() => { setMultiplayerOpen(true); sfx.click(); }} 
+              disabled={doorsOpening || started}
+              onMouseEnter={() => sfx.hover()} 
+              tabIndex={started ? -1 : 0}
+            >
+              ⚔️ {t.onlineDuelBtn}
+            </button>
+          </div>
           <p className="title-tip">{t.titleTip}</p>
         </div>
       </section>
@@ -559,11 +636,71 @@ export default function App() {
               {t.playerII} <b>{p2Score}</b>
             </span>
           </div>
-          <button className="btn-d2 reset-btn" onClick={() => { sfx.click(); resetGame(); }} onMouseEnter={() => sfx.hover()}>
-            {t.fightAgain}
-          </button>
+
+          {gameMode === 'online' ? (
+            <div className="victory-actions">
+              {rematchState === 'idle' && (
+                <button
+                  className="btn-d2 reset-btn"
+                  onClick={() => {
+                    sfx.click();
+                    network.send({ type: 'REMATCH_REQUEST' });
+                    setRematchState('requested_by_me');
+                  }}
+                  onMouseEnter={() => sfx.hover()}
+                >
+                  ⚔️ {t.requestRematch}
+                </button>
+              )}
+              {rematchState === 'requested_by_me' && (
+                <button className="btn-d2 reset-btn" disabled>
+                  ⏳ {t.rematchRequested}
+                </button>
+              )}
+              {rematchState === 'requested_by_opponent' && (
+                <button
+                  className="btn-d2 reset-btn"
+                  onClick={() => {
+                    sfx.click();
+                    if (myPlayerNumber === 1) {
+                      const fresh = initGame();
+                      resetGameOnline(fresh.cells, fresh.stones);
+                      network.send({ type: 'REMATCH_ACCEPT', cells: fresh.cells, stones: fresh.stones });
+                    } else {
+                      network.send({ type: 'REMATCH_REQUEST' });
+                      setRematchState('requested_by_me');
+                    }
+                  }}
+                  onMouseEnter={() => sfx.hover()}
+                >
+                  ✨ {t.acceptRematch}
+                </button>
+              )}
+              <button
+                className="btn-d2 reset-btn btn-secondary"
+                onClick={() => {
+                  sfx.click();
+                  leaveOnline();
+                }}
+                onMouseEnter={() => sfx.hover()}
+              >
+                🚪 {t.leaveRoom}
+              </button>
+            </div>
+          ) : (
+            <button className="btn-d2 reset-btn" onClick={() => { sfx.click(); resetGame(); }} onMouseEnter={() => sfx.hover()}>
+              {t.fightAgain}
+            </button>
+          )}
         </section>
       )}
+
+      {/* ---------- Multiplayer Sanctuary Modal ---------- */}
+      <MultiplayerModal
+        isOpen={multiplayerOpen}
+        onClose={() => setMultiplayerOpen(false)}
+        initialRoomCode={inviteRoomCode}
+      />
     </div>
   );
 }

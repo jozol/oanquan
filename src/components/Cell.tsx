@@ -18,6 +18,8 @@ export const Cell = memo(function Cell({ cell }: { cell: CellData }) {
   const stonesCount = cell.stones;
 
   const currentPlayer = useGameStore(s => s.currentPlayer);
+  const gameMode = useGameStore(s => s.gameMode);
+  const myPlayerNumber = useGameStore(s => s.myPlayerNumber);
   const cellToSow = useGameStore(s => s.cellToSow);
   const dragStartIndex = useGameStore(s => s.dragStartIndex);
   const dragDeltaX = useGameStore(s => s.dragDeltaX);
@@ -26,7 +28,8 @@ export const Cell = memo(function Cell({ cell }: { cell: CellData }) {
   
   const [hovered, setHovered] = useState(false);
 
-  const isClickable = !isAnimating && cell.owner === currentPlayer && stonesCount > 0;
+  const isMyTurn = gameMode === 'local' || myPlayerNumber === currentPlayer;
+  const isClickable = !isAnimating && isMyTurn && cell.owner === currentPlayer && stonesCount > 0;
   const isSelected = cellToSow === index;
   
   let isDropTarget = false;

@@ -12,6 +12,8 @@ import { BASE_FOV } from './layout';
 
 function CameraRig() {
   const currentPlayer = useGameStore(s => s.currentPlayer);
+  const gameMode = useGameStore(s => s.gameMode);
+  const myPlayerNumber = useGameStore(s => s.myPlayerNumber);
   const started = useFx(s => s.started);
   const doorsOpening = useFx(s => s.doorsOpening);
   const tacticalView = useFx(s => s.tacticalView);
@@ -58,24 +60,34 @@ function CameraRig() {
   const playPos = useRef(new THREE.Vector3(0, 10.5, 14.8));
   const playTarget = useRef(new THREE.Vector3(0, 0, 0));
 
+  // In online mode, Player 2 views from the opposite side
+  if (gameMode === 'online' && myPlayerNumber === 2) {
+    playPos.current.set(0, 10.5, -14.8);
+  } else {
+    playPos.current.set(0, 10.5, 14.8);
+  }
+
   // Trigger entrance swoop when doors start opening
   if (doorsOpening && !hasEntered.current && !isEntering.current) {
     isEntering.current = true;
     entranceProgress.current = 0;
   }
 
-  // Turn changes trigger a quick cinematic spin towards the active player's side
+  // Turn changes trigger a quick cinematic spin towards the active player's side in LOCAL mode only
   if (started && !isEntering.current && prevPlayer.current !== currentPlayer) {
     prevPlayer.current = currentPlayer;
-    turnTransition.current = {
-      active: true,
-      startTheta: NaN,
-      totalDiff: 0,
-      radius: 21,
-      phi: Math.PI / 3,
-      progress: 0,
-      duration: 0.65, // ~650ms snappy, responsive spin
-    };
+    // In online mode, keep perspective locked to the player's side; do not spin 180 degrees every turn
+    if (gameMode !== 'online') {
+      turnTransition.current = {
+        active: true,
+        startTheta: NaN,
+        totalDiff: 0,
+        radius: 21,
+        phi: Math.PI / 3,
+        progress: 0,
+        duration: 0.65, // ~650ms snappy, responsive spin
+      };
+    }
   }
 
   // Tactical view changes

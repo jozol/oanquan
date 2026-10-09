@@ -1115,3 +1115,218 @@ button { font-family: var(--display); }
   }
 }
 
+/* ---------------- Multiplayer Online Duel Styles ---------------- */
+.title-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.btn-mp {
+  background: linear-gradient(180deg, #142a42 0%, #08111e 100%) !important;
+  border-color: #4a84b8 !important;
+  color: #cce4ff !important;
+  box-shadow: inset 0 0 0 1px #000, 0 0 16px rgba(60, 140, 255, 0.4), 0 6px 18px rgba(0,0,0,0.9) !important;
+}
+
+.btn-mp:hover {
+  border-color: #7ab8f0 !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #000, 0 0 28px rgba(60, 150, 255, 0.75), 0 8px 22px rgba(0,0,0,0.9) !important;
+  text-shadow: 0 0 12px #3f9bff, 0 2px 0 #000 !important;
+}
+
+.hud-mp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 14px;
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(201, 166, 83, 0.4);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--gold-hi);
+}
+
+.mp-tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: pulse-dot 1.8s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+.mp-role-tag {
+  font-weight: 700;
+}
+.mp-role-tag.p1 { color: #ff5544; }
+.mp-role-tag.p2 { color: #66aaff; }
+
+/* Multiplayer Modal Specifics */
+.mp-modal {
+  max-width: 540px;
+}
+
+.mp-content {
+  padding: 24px;
+}
+
+.mp-tab-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.mp-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.mp-desc {
+  font-size: 0.95rem;
+  color: var(--gold);
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+
+.mp-lobby-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(201, 166, 83, 0.25);
+  border-radius: 6px;
+}
+
+.mp-code-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8e7c4c;
+}
+
+.mp-code-display {
+  padding: 10px 24px;
+  background: rgba(15, 10, 8, 0.9);
+  border: 2px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: 0 0 20px rgba(255, 170, 40, 0.3), inset 0 0 10px rgba(0,0,0,0.8);
+}
+
+.mp-code-text {
+  font-size: 2.2rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: #ffda73;
+  text-shadow: 0 0 14px rgba(255, 180, 50, 0.8);
+}
+
+.mp-copy-btn {
+  font-size: 0.95rem;
+  padding: 10px 22px;
+}
+
+.mp-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 180, 50, 0.2);
+  border-radius: 20px;
+  font-size: 0.82rem;
+  color: #d9c07a;
+}
+
+.mp-beacon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffaa33;
+  box-shadow: 0 0 8px #ff8800;
+  animation: pulse-dot 1.4s infinite;
+}
+
+.mp-input-group {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+  justify-content: center;
+}
+
+.mp-code-input {
+  flex: 1;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #ffda73;
+  background: rgba(10, 8, 6, 0.85);
+  border: 2px solid var(--gold-dim);
+  border-radius: 4px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.mp-code-input:focus {
+  border-color: var(--gold-hi);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.8), 0 0 16px rgba(255, 170, 40, 0.4);
+}
+
+.mp-code-input::placeholder {
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: #6a5a40;
+}
+
+.mp-error-msg {
+  color: #ff5544;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  margin: 4px 0 0;
+  text-shadow: 0 0 8px rgba(255, 50, 50, 0.5);
+}
+
+.victory-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.btn-secondary {
+  background: linear-gradient(180deg, #2b2520 0%, #14110e 100%) !important;
+  border-color: #6a5d48 !important;
+  color: #bfa980 !important;
+}
+
+.btn-secondary:hover {
+  border-color: #a08a68 !important;
+  color: #e6d3af !important;
+}
+

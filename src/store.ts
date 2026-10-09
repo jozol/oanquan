@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { fx } from './fx';
+import { network } from './network';
 
 export type CellType = 'citizen' | 'mandarin';
 
@@ -22,6 +23,10 @@ export interface StoneData {
   jitterZ: number;
 }
 
+export type GameMode = 'local' | 'online';
+export type PeerStatus = 'disconnected' | 'connecting' | 'waiting' | 'connected' | 'error';
+export type RematchState = 'idle' | 'requested_by_me' | 'requested_by_opponent';
+
 interface GameState {
   cells: CellData[];
   stones: StoneData[];
@@ -34,18 +39,35 @@ interface GameState {
   dragStartX: number | null;
   dragStartIndex: number | null;
   dragDeltaX: number;
-  
+
+  // Multiplayer fields
+  gameMode: GameMode;
+  myPlayerNumber: 1 | 2 | null;
+  roomId: string | null;
+  peerStatus: PeerStatus;
+  peerError: string | null;
+  rematchState: RematchState;
+
   selectCell: (index: number | null) => void;
   startDrag: (index: number, x: number) => void;
   updateDrag: (x: number) => void;
   endDrag: (x: number) => void;
-  executeMove: (startIndex: number, dir: 'cw' | 'ccw') => Promise<void>;
+  executeMove: (startIndex: number, dir: 'cw' | 'ccw', isRemote?: boolean) => Promise<void>;
   resetGame: () => void;
+
+  // Multiplayer actions
+  setGameMode: (mode: GameMode, myPlayerNumber?: 1 | 2 | null, roomId?: string | null) => void;
+  setPeerStatus: (status: PeerStatus, error?: string | null) => void;
+  setRematchState: (state: RematchState) => void;
+  syncRemoteBoard: (cells: CellData[], stones: StoneData[], currentPlayer: number) => void;
+  syncScoresAndCounts: (p1Score: number, p2Score: number, cellCounts: number[]) => void;
+  resetGameOnline: (cells?: CellData[], stones?: StoneData[]) => void;
+  leaveOnline: () => void;
 }
 
 const SQUARE_SIZE = 2;
 
-function initGame() {
+export function initGame() {
   const cells: CellData[] = [];
   const stones: StoneData[] = [];
   let stoneId = 0;
@@ -53,7 +75,7 @@ function initGame() {
   // 0-4: P1 (Bottom row, Left to Right)
   for (let i = 0; i < 5; i++) {
     cells.push({ index: i, type: 'citizen', owner: 1, stones: 5, x: (i - 2) * SQUARE_SIZE, z: SQUARE_SIZE / 2, width: SQUARE_SIZE, depth: SQUARE_SIZE });
-    for(let j=0; j<5; j++) stones.push({ id: `s_${stoneId++}`, logicalCell: i, value: 1, jitterX: (Math.random() - 0.5) * 1.2, jitterZ: (Math.random() - 0.5) * 1.2 });
+    for (let j = 0; j < 5; j++) stones.push({ id: `s_${stoneId++}`, logicalCell: i, value: 1, jitterX: (Math.random() - 0.5) * 1.2, jitterZ: (Math.random() - 0.5) * 1.2 });
   }
 
   // 5: Right Mandarin
@@ -63,7 +85,7 @@ function initGame() {
   // 6-10: P2 (Top row, Right to Left)
   for (let i = 0; i < 5; i++) {
     cells.push({ index: 6 + i, type: 'citizen', owner: 2, stones: 5, x: (2 - i) * SQUARE_SIZE, z: -SQUARE_SIZE / 2, width: SQUARE_SIZE, depth: SQUARE_SIZE });
-    for(let j=0; j<5; j++) stones.push({ id: `s_${stoneId++}`, logicalCell: 6 + i, value: 1, jitterX: (Math.random() - 0.5) * 1.2, jitterZ: (Math.random() - 0.5) * 1.2 });
+    for (let j = 0; j < 5; j++) stones.push({ id: `s_${stoneId++}`, logicalCell: 6 + i, value: 1, jitterX: (Math.random() - 0.5) * 1.2, jitterZ: (Math.random() - 0.5) * 1.2 });
   }
 
   // 11: Left Mandarin
@@ -90,9 +112,94 @@ export const useGameStore = create<GameState>((set, get) => ({
   dragStartIndex: null,
   dragDeltaX: 0,
 
-  selectCell: (index) => set({ cellToSow: index }),
+  // Multiplayer default values
+  gameMode: 'local',
+  myPlayerNumber: null,
+  roomId: null,
+  peerStatus: 'disconnected',
+  peerError: null,
+  rematchState: 'idle',
+
+  setGameMode: (gameMode, myPlayerNumber = null, roomId = null) => {
+    set({ gameMode, myPlayerNumber, roomId });
+  },
+
+  setPeerStatus: (peerStatus, peerError = null) => {
+    set({ peerStatus, peerError });
+  },
+
+  setRematchState: (rematchState) => {
+    set({ rematchState });
+  },
+
+  syncRemoteBoard: (cells, stones, currentPlayer) => {
+    set({ cells, stones, currentPlayer, cellToSow: null, isAnimating: false });
+  },
+
+  syncScoresAndCounts: (p1Score, p2Score, cellCounts) => {
+    set(s => {
+      const updatedCells = s.cells.map((c, idx) => {
+        if (cellCounts[idx] !== undefined && cellCounts[idx] !== c.stones) {
+          return { ...c, stones: cellCounts[idx] };
+        }
+        return c;
+      });
+      return { p1Score, p2Score, cells: updatedCells };
+    });
+  },
+
+  resetGameOnline: (customCells, customStones) => {
+    const base = customCells && customStones ? { cells: customCells, stones: customStones } : initGame();
+    set({
+      ...base,
+      currentPlayer: 1,
+      p1Score: 0,
+      p2Score: 0,
+      isAnimating: false,
+      winner: null,
+      cellToSow: null,
+      dragStartX: null,
+      dragStartIndex: null,
+      dragDeltaX: 0,
+      rematchState: 'idle',
+    });
+  },
+
+  leaveOnline: () => {
+    network.cleanup();
+    set({
+      ...initGame(),
+      gameMode: 'local',
+      myPlayerNumber: null,
+      roomId: null,
+      peerStatus: 'disconnected',
+      peerError: null,
+      rematchState: 'idle',
+      currentPlayer: 1,
+      p1Score: 0,
+      p2Score: 0,
+      isAnimating: false,
+      winner: null,
+      cellToSow: null,
+      dragStartX: null,
+      dragStartIndex: null,
+      dragDeltaX: 0,
+    });
+  },
+
+  selectCell: (index) => {
+    const { gameMode, myPlayerNumber, currentPlayer, isAnimating } = get();
+    if (isAnimating) return;
+    if (gameMode === 'online' && myPlayerNumber !== currentPlayer) return;
+    set({ cellToSow: index });
+  },
   
-  startDrag: (index, x) => set({ dragStartX: x, dragStartIndex: index, dragDeltaX: 0, cellToSow: index }),
+  startDrag: (index, x) => {
+    const { gameMode, myPlayerNumber, currentPlayer, isAnimating } = get();
+    if (isAnimating) return;
+    if (gameMode === 'online' && myPlayerNumber !== currentPlayer) return;
+    set({ dragStartX: x, dragStartIndex: index, dragDeltaX: 0, cellToSow: index });
+  },
   
   updateDrag: (x) => {
     const { dragStartX } = get();
@@ -114,9 +221,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ dragStartX: null, dragStartIndex: null, dragDeltaX: 0 });
   },
 
-  resetGame: () => set({ ...initGame(), currentPlayer: 1, p1Score: 0, p2Score: 0, isAnimating: false, winner: null, cellToSow: null, dragStartX: null, dragStartIndex: null, dragDeltaX: 0 }),
+  resetGame: () => {
+    const { gameMode } = get();
+    if (gameMode === 'online') {
+      get().resetGameOnline();
+    } else {
+      set({ ...initGame(), currentPlayer: 1, p1Score: 0, p2Score: 0, isAnimating: false, winner: null, cellToSow: null, dragStartX: null, dragStartIndex: null, dragDeltaX: 0 });
+    }
+  },
 
-  executeMove: async (startIndex, dir) => {
+  executeMove: async (startIndex, dir, isRemote = false) => {
+    const { gameMode } = get();
+    
+    // Broadcast move to peer if initiated locally in online mode
+    if (gameMode === 'online' && !isRemote) {
+      network.send({ type: 'MOVE', startIndex, dir });
+    }
+
     set({ isAnimating: true, cellToSow: null });
     
     let currentIndex = startIndex;
@@ -245,8 +366,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (finalCells[5].stones === 0 && finalCells[11].stones === 0) {
         let p1Extra = 0, p2Extra = 0;
         finalCells.forEach(c => {
-          if(c.owner === 1) p1Extra += c.stones;
-          if(c.owner === 2) p2Extra += c.stones;
+          if (c.owner === 1) p1Extra += c.stones;
+          if (c.owner === 2) p2Extra += c.stones;
         });
         const p1Final = get().p1Score + p1Extra;
         const p2Final = get().p2Score + p2Extra;
@@ -279,17 +400,20 @@ export const useGameStore = create<GameState>((set, get) => ({
             set(s => ({ p2Score: s.p2Score - 5 }));
           }
           
-          // Spawn 1 stone in each of their 5 cells
+          // Spawn 1 stone in each of their 5 cells with deterministic jitter so both peers match
           const startIdx = nextPlayer === 1 ? 0 : 6;
           for (let i = 0; i < 5; i++) {
              const cellIdx = startIdx + i;
              currentCells[cellIdx] = { ...currentCells[cellIdx], stones: 1 };
+             const seed = (cellIdx * 19 + i * 37) % 97;
+             const jX = (((seed % 10) / 10) - 0.5) * 1.2;
+             const jZ = ((((Math.floor(seed / 10)) % 10) / 10) - 0.5) * 1.2;
              currentStones.push({
-               id: `borrowed_${Date.now()}_${i}`,
+               id: `borrowed_${nextPlayer}_${cellIdx}_${i}`,
                logicalCell: cellIdx,
                value: 1,
-               jitterX: (Math.random() - 0.5) * 1.2,
-               jitterZ: (Math.random() - 0.5) * 1.2
+               jitterX: jX,
+               jitterZ: jZ
              });
           }
           
@@ -298,6 +422,17 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
         
         set({ isAnimating: false });
+      }
+
+      // If in online mode and we just made our move, transmit state check to verify parity
+      const state = get();
+      if (state.gameMode === 'online' && !isRemote) {
+        network.send({
+          type: 'SYNC_CHECK',
+          p1Score: state.p1Score,
+          p2Score: state.p2Score,
+          cellCounts: state.cells.map(c => c.stones),
+        });
       }
     };
 
